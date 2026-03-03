@@ -1,0 +1,41 @@
+Original prompt: in the quiz section if I have finished the quiz I cannot play it again. Also the snippet music doesn't play in the quiz section.
+
+- Investigated quiz playback flow in quiz-view.tsx and quiz-play-view.tsx.
+- Found YouTube playback starts before onReady is guaranteed; runQuestion then falls back to setup/finished.
+- Implemented readiness gating in both wait loops and load attempts (requires player instance + onReady).
+- User still hit "YouTube player is not ready yet".
+- Follow-up fix: changed hidden YouTube hosts to offscreen 1px containers (no display:none) in quiz-view, quiz-play-view, and quiz-companion-view.
+- Follow-up fix: expanded playback readiness retry window in quiz-view and quiz-play-view (20s wait + 200 retries).
+- Route-specific root cause found for /quiz/play/<id>: loading branch returned early without mounting YouTube host refs, so init effect couldn't create player.
+- Route-specific fix: loading UI now still mounts offscreen YouTube containers in quiz-play-view.
+- Validation: cmd /c npm run lint (pass), cmd /c npx tsc --noEmit (pass).
+- TODO: manual browser validation on /quiz/play/<id> for initial snippet and Play Again flow.
+- Regression from previous fix discovered: duplicated conditional YouTube host mounting in quiz-play-view caused Runtime NotFoundError (removeChild on detached node).
+- Fix: removed loading-time early return and kept a single stable component tree with one YouTube host mount path.
+- Validation: cmd /c npm run lint (pass), cmd /c npx tsc --noEmit (pass).
+- New runtime error on /quiz/play/<id>: NotFoundError insertBefore when starting quiz.
+- Root cause: YT iframe API can replace the DOM node passed to new YT.Player; React then tries to reconcile around a replaced node.
+- Fix: mount YT players on imperatively-created child nodes inside stable wrapper refs (youtubeMountRef/youtubePreloadMountRef), and remove those nodes safely on cleanup.
+- Validation: cmd /c npm run lint (pass), cmd /c npx tsc --noEmit (pass).
+- Timer behavior fix requested: start timer only after snippet actually starts playing.
+- Implemented in quiz-play-view and quiz-view by waiting for YT onStateChange PLAYING before playSnippet resolves.
+- Added pending snippet-start promise handling with timeout and cancellation on errors/cleanup.
+- Validation: cmd /c npm run lint (pass), cmd /c npx tsc --noEmit (pass).
+- UI stabilization request: keep multiple-choice answers from shifting when snippet stops.
+- Implemented fixed-height status rows in quiz-play-view and quiz-view:
+  - Top snippet status card now persists in both playing and answering states with min-h-10.
+  - Multiple-choice helper line now always renders with min-h-5 and state-specific text.
+- Validation: cmd /c npm run lint (pass), cmd /c npx tsc --noEmit (pass).
+- Implemented item 1 (font build dependency): removed next/font/google Space_Grotesk import from root layout and switched to local-only font stack in globals.css.
+- Implemented item 2 (YT DOM stability): applied imperative child mount pattern in quiz-view and quiz-companion-view (main + preload players) with safe cleanup, matching quiz-play-view.
+- Verification: npm run lint (pass), npx tsc --noEmit (pass).
+- Build: Next compilation now succeeds (no Google font fetch failure). Remaining failure in this sandbox is OS-level spawn EPERM during Next build final step.
+- Implemented shared/distributed rate limiter support via Upstash Redis REST in src/lib/rate-limit.ts (fixed-window key strategy), with automatic fallback to in-memory when Upstash is not configured or unavailable.
+- Converted rate limiter API to async and updated all write-route and YouTube-search call sites to await limiter checks.
+- Added UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to .env.example.
+- Validation: npm run lint (pass), npx tsc --noEmit (pass). Build still hits sandbox-level spawn EPERM after successful compile.
+- Continued hardening for YOUTUBE_API_KEY/public API exposure.
+- Added auth gate to /api/youtube/search and /api/tracks (401 if no session).
+- Updated YouTube search limiter key to include user id + IP.
+- Updated README notes and DEPLOY_CHECKLIST to reflect API hardening and remaining external key restriction step.
+- Validation: npm run lint (pass), npx tsc --noEmit (pass), npm run build compile succeeds but sandbox still fails at final step with spawn EPERM.

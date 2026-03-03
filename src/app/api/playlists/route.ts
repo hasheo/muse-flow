@@ -1,0 +1,142 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { z } from "zod";
+
+import { authOptions } from "@/lib/auth";
+import { enforcePlaylistWriteRateLimit } from "@/lib/api-security";
+import { apiError, zodErrorDetails } from "@/lib/api-response";
+import { db } from "@/lib/db";
+import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
+import { DEFAULT_QUIZ_DIFFICULTY, QUIZ_DIFFICULTY_VALUES } from "@/lib/quiz-difficulty";
+import { DEFAULT_QUIZ_ANSWER_MODE, QUIZ_ANSWER_MODE_VALUES } from "@/lib/quiz-answer-mode";
+
+const createPlaylistSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    cover: z.string().trim().url().optional(),
+    isQuiz: z.boolean().optional(),
+    isPublic: z.boolean().optional(),
+    difficulty: z.enum(QUIZ_DIFFICULTY_VALUES).optional(),
+    answerMode: z.enum(QUIZ_ANSWER_MODE_VALUES).optional(),
+  })
+  .strict();
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return apiError({
+        status: 401,
+        code: "UNAUTHORIZED",
+        message: "Unauthorized",
+      });
+    }
+
+    const playlists = await db.playlist.findMany({
+      where: { userId: session.user.id },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        _count: {
+          select: { tracks: true },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      playlists: playlists.map((playlist) => ({
+        id: playlist.id,
+        name: playlist.name,
+        cover: playlist.cover,
+        isQuiz: playlist.isQuiz,
+        isPublic: playlist.isPublic,
+        difficulty: playlist.difficulty,
+        answerMode: playlist.answerMode,
+        createdAt: playlist.createdAt,
+        updatedAt: playlist.updatedAt,
+        trackCount: playlist._count.tracks,
+      })),
+    });
+  } catch (error) {
+    return apiError({
+      status: 500,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to fetch playlists",
+      details: error instanceof Error ? { reason: error.message } : undefined,
+    });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return apiError({
+        status: 401,
+        code: "UNAUTHORIZED",
+        message: "Unauthorized",
+      });
+    }
+
+    const rateLimited = await enforcePlaylistWriteRateLimit(request, session.user.id, "create-playlist");
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      return apiError({
+        status: 400,
+        code: "INVALID_JSON",
+        message: "Invalid JSON body",
+      });
+    }
+
+    const parsed = createPlaylistSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return apiError({
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "Invalid playlist payload",
+        details: zodErrorDetails(parsed.error),
+      });
+    }
+
+    const playlist = await db.playlist.create({
+      data: {
+        name: parsed.data.name,
+        cover: parsed.data.cover || DEFAULT_PLAYLIST_COVER,
+        isQuiz: parsed.data.isQuiz ?? false,
+        isPublic: parsed.data.isPublic ?? false,
+        difficulty: parsed.data.difficulty ?? DEFAULT_QUIZ_DIFFICULTY,
+        answerMode: parsed.data.answerMode ?? DEFAULT_QUIZ_ANSWER_MODE,
+        userId: session.user.id,
+      },
+    });
+
+    return NextResponse.json(
+      {
+        playlist: {
+          id: playlist.id,
+          name: playlist.name,
+          cover: playlist.cover,
+          isQuiz: playlist.isQuiz,
+          isPublic: playlist.isPublic,
+          difficulty: playlist.difficulty,
+          answerMode: playlist.answerMode,
+          createdAt: playlist.createdAt,
+          updatedAt: playlist.updatedAt,
+          trackCount: 0,
+        },
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiError({
+      status: 500,
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to create playlist",
+      details: error instanceof Error ? { reason: error.message } : undefined,
+    });
+  }
+}
