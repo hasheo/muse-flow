@@ -21,76 +21,20 @@ import {
   coerceQuizAnswerMode,
   DEFAULT_QUIZ_ANSWER_MODE,
   getQuizAnswerModeLabel,
-  type QuizAnswerMode,
 } from "@/lib/quiz-answer-mode";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
 import { usePlayerStore } from "@/store/player-store";
-import { isQuizAnswerCorrect, normalizeQuizText } from "@/lib/quiz-text";
+import { isQuizAnswerCorrect } from "@/lib/quiz-text";
 import {
   type PlaylistDetailResponse,
   type QuizToast,
   type QuestionReview,
   type QuizAttemptAnswer,
-  type QuizAttemptItem,
-  type ApiErrorPayload,
-  QuizAttemptSaveError,
 } from "@/lib/quiz-types";
 import { fetchPlaylistTracks, saveQuizAttempt, isTokenExpiredError, fetchQuizAttempts } from "@/lib/quiz-api";
+import { shuffleTracks, buildMultipleChoiceOptions, getTimerAnnouncement } from "@/lib/quiz-utils";
 
 type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
-
-function shuffleItems<T>(list: T[]) {
-  const next = [...list];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
-  }
-  return next;
-}
-
-function shuffleTracks(list: Track[]) {
-  return shuffleItems(list);
-}
-
-function buildMultipleChoiceOptions(track: Track, tracksPool: Track[]) {
-  const normalizedCorrect = normalizeQuizText(track.title);
-  const choices: string[] = [track.title];
-  const used = new Set<string>([normalizedCorrect]);
-  const distractors = shuffleItems(
-    tracksPool.filter((candidate) => normalizeQuizText(candidate.title) !== normalizedCorrect),
-  );
-
-  for (const candidate of distractors) {
-    if (choices.length >= 4) {
-      break;
-    }
-    const normalizedCandidate = normalizeQuizText(candidate.title);
-    if (used.has(normalizedCandidate)) {
-      continue;
-    }
-    used.add(normalizedCandidate);
-    choices.push(candidate.title);
-  }
-
-  while (choices.length < 4) {
-    choices.push(`Pilihan lain ${choices.length}`);
-  }
-
-  return shuffleItems(choices);
-}
-
-function getTimerAnnouncement(secondsLeft: number) {
-  if (secondsLeft === 10) {
-    return "10 detik tersisa.";
-  }
-  if (secondsLeft <= 5 && secondsLeft >= 1) {
-    return `${secondsLeft} detik tersisa.`;
-  }
-  if (secondsLeft === 0) {
-    return "Waktu habis.";
-  }
-  return "";
-}
 
 export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const queryClient = useQueryClient();
