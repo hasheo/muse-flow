@@ -26,67 +26,17 @@ import {
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
 import { usePlayerStore } from "@/store/player-store";
 import { isQuizAnswerCorrect, normalizeQuizText } from "@/lib/quiz-text";
-
-type PlaylistDetailResponse = {
-  playlist?: {
-    id: string;
-    name: string;
-    cover: string;
-    isQuiz: boolean;
-    isPublic: boolean;
-    difficulty: QuizDifficulty;
-    answerMode: QuizAnswerMode;
-    ownerName?: string;
-    trackCount: number;
-  };
-  tracks?: Track[];
-  quizSessionToken?: string | null;
-  message?: string;
-};
+import {
+  type PlaylistDetailResponse,
+  type QuizToast,
+  type QuestionReview,
+  type QuizAttemptAnswer,
+  type QuizAttemptItem,
+  type ApiErrorPayload,
+  QuizAttemptSaveError,
+} from "@/lib/quiz-types";
 
 type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
-type QuizToast = { message: string; type: "error" | "success" } | null;
-type QuestionReview = {
-  trackId: string;
-  questionNumber: number;
-  correctAnswer: string;
-  userAnswer: string;
-  isCorrect: boolean;
-};
-type QuizAttemptAnswer = {
-  trackId: string;
-  userAnswer: string;
-};
-
-type QuizAttemptItem = {
-  id: string;
-  userId: string;
-  userName?: string;
-  score: number;
-  totalQuestions: number;
-  difficulty: string;
-  answerMode: string;
-  createdAt: string;
-};
-type ApiErrorPayload = {
-  code?: string;
-  message?: string;
-  details?: {
-    reason?: string;
-  };
-};
-
-class QuizAttemptSaveError extends Error {
-  code?: string;
-  reason?: string;
-
-  constructor(payload: ApiErrorPayload) {
-    super(payload.message || "Failed to save quiz attempt.");
-    this.name = "QuizAttemptSaveError";
-    this.code = payload.code;
-    this.reason = payload.details?.reason;
-  }
-}
 
 function shuffleItems<T>(list: T[]) {
   const next = [...list];
