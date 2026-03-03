@@ -35,6 +35,7 @@ import {
   type ApiErrorPayload,
   QuizAttemptSaveError,
 } from "@/lib/quiz-types";
+import { fetchPlaylistTracks, saveQuizAttempt, isTokenExpiredError, fetchQuizAttempts } from "@/lib/quiz-api";
 
 type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
 
@@ -89,57 +90,6 @@ function getTimerAnnouncement(secondsLeft: number) {
     return "Waktu habis.";
   }
   return "";
-}
-
-async function fetchPlaylistTracks(playlistId: string) {
-  const response = await fetch(`/api/playlists/${playlistId}`, { cache: "no-store" });
-  const payload = (await response.json()) as PlaylistDetailResponse;
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to load playlist tracks");
-  }
-
-  return payload;
-}
-
-async function saveQuizAttempt(payload: {
-  playlistId: string;
-  difficulty: QuizDifficulty;
-  answerMode: QuizAnswerMode;
-  quizSessionToken: string;
-  answers: QuizAttemptAnswer[];
-}) {
-  const response = await fetch("/api/quiz/attempts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const parsed = (await response.json()) as ApiErrorPayload;
-  if (!response.ok) {
-    throw new QuizAttemptSaveError(parsed);
-  }
-}
-
-function isTokenExpiredError(error: unknown) {
-  return error instanceof QuizAttemptSaveError && error.code === "UNAUTHORIZED" && error.reason === "Token expired";
-}
-
-async function fetchQuizAttempts(playlistId: string) {
-  const response = await fetch(`/api/quiz/attempts?playlistId=${encodeURIComponent(playlistId)}`, {
-    cache: "no-store",
-  });
-  const parsed = (await response.json()) as {
-    leaderboard?: QuizAttemptItem[];
-    userHistory?: QuizAttemptItem[];
-    message?: string;
-  };
-  if (!response.ok) {
-    throw new Error(parsed.message || "Failed to load quiz attempts.");
-  }
-  return {
-    leaderboard: parsed.leaderboard ?? [],
-    userHistory: parsed.userHistory ?? [],
-  };
 }
 
 export function QuizPlayView({ playlistId }: { playlistId: string }) {
