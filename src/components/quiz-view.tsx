@@ -25,7 +25,9 @@ import {
   type QuizAnswerMode,
 } from "@/lib/quiz-answer-mode";
 import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
-import { useYouTubePlayer } from "@/hooks/use-youtube-player";
+import { useQuizTimers } from "@/hooks/use-quiz-timers";
+import { useQuizPlayers } from "@/hooks/use-quiz-players";
+import { useQuizSnippetPlayback } from "@/hooks/use-quiz-snippet-playback";
 import { usePlayerStore } from "@/store/player-store";
 import { isQuizAnswerCorrect } from "@/lib/quiz-text";
 import {
@@ -150,19 +152,16 @@ export function QuizView() {
   const [isFinishConfirmOpen, setIsFinishConfirmOpen] = useState(false);
   const [isFinishingQuiz, setIsFinishingQuiz] = useState(false);
 
-  const pendingSnippetStartRef = useRef<{
-    reject: (error: Error) => void;
-    resolve: () => void;
-  } | null>(null);
-  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const answerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSentinelRef = useRef<HTMLDivElement | null>(null);
   const searchResultsContainerRef = useRef<HTMLDivElement | null>(null);
-  const preloadedTrackIdRef = useRef<string | null>(null);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const loadMoreAbortControllerRef = useRef<AbortController | null>(null);
   const searchGenerationRef = useRef(0);
+
+  const { clearTimers, cancelPendingSnippetStart, pendingSnippetStartRef, snippetTimeoutRef, answerIntervalRef } = useQuizTimers();
+  const { mainPlayerRef, mainContainerRef, preloadPlayerRef, preloadReadyRef, preloadContainerRef, stopQuizAudio } = useQuizPlayers({ pendingSnippetStartRef, cancelPendingSnippetStart });
+  const { playSnippet, preloadTrackMetadata } = useQuizSnippetPlayback({ mainPlayerRef, preloadPlayerRef, preloadReadyRef, pendingSnippetStartRef, cancelPendingSnippetStart });
 
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
@@ -189,42 +188,6 @@ export function QuizView() {
   const currentTrack = quizTracks[currentIndex] ?? null;
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
   const timerAnnouncement = phase === "playing" || phase === "answering" ? getTimerAnnouncement(timeLeft) : "";
-
-  const clearTimers = useCallback(() => {
-    if (snippetTimeoutRef.current) {
-      clearTimeout(snippetTimeoutRef.current);
-      snippetTimeoutRef.current = null;
-    }
-    if (answerIntervalRef.current) {
-      clearInterval(answerIntervalRef.current);
-      answerIntervalRef.current = null;
-    }
-  }, []);
-
-  const cancelPendingSnippetStart = useCallback((message: string) => {
-    pendingSnippetStartRef.current?.reject(new Error(message));
-    pendingSnippetStartRef.current = null;
-  }, []);
-
-  const QUIZ_PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1, rel: 0 };
-
-  const { playerRef: mainPlayerRef, containerRef: mainContainerRef } = useYouTubePlayer({
-    playerVars: QUIZ_PLAYER_VARS,
-    onStateChange: (event) => {
-      if (event.data === 1) {
-        pendingSnippetStartRef.current?.resolve();
-        pendingSnippetStartRef.current = null;
-      }
-    },
-    onError: () => {
-      cancelPendingSnippetStart("Failed to start snippet playback.");
-    },
-  });
-  const { playerRef: preloadPlayerRef, readyRef: preloadReadyRef, containerRef: preloadContainerRef } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
-
-  const stopQuizAudio = useCallback(() => {
-    mainPlayerRef.current?.pauseVideo();
-  }, [mainPlayerRef]);
 
   const clearPreviewTimeout = useCallback(() => {
     if (previewTimeoutRef.current) {
@@ -261,108 +224,6 @@ export function QuizView() {
       loadMoreAbortControllerRef.current?.abort();
     };
   }, []);
-
-  const waitForYouTubePlayerInstance = useCallback((timeoutMs = 20000) => {
-    return new Promise<void>((resolve, reject) => {
-      if (mainPlayerRef.current) {
-        resolve();
-        return;
-      }
-
-      const start = Date.now();
-      const intervalId = window.setInterval(() => {
-        if (mainPlayerRef.current) {
-          window.clearInterval(intervalId);
-          resolve();
-          return;
-        }
-
-        if (Date.now() - start >= timeoutMs) {
-          window.clearInterval(intervalId);
-          reject(new Error("YouTube player is not ready yet."));
-        }
-      }, 50);
-    });
-  }, [mainPlayerRef]);
-
-  const playSnippet = useCallback(
-    async (track: Track, startAt: number) => {
-      await waitForYouTubePlayerInstance();
-      let lastError: unknown;
-
-      for (let attempt = 0; attempt < 200; attempt += 1) {
-        const player = mainPlayerRef.current;
-        if (!player) {
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
-          continue;
-        }
-
-        try {
-          cancelPendingSnippetStart("Restarting snippet playback.");
-          const playbackStarted = new Promise<void>((resolve, reject) => {
-            const timeoutId = window.setTimeout(() => {
-              if (pendingSnippetStartRef.current === marker) {
-                pendingSnippetStartRef.current = null;
-              }
-              reject(new Error("Snippet took too long to start."));
-            }, 8000);
-
-            const marker = {
-              reject: (error: Error) => {
-                window.clearTimeout(timeoutId);
-                if (pendingSnippetStartRef.current === marker) {
-                  pendingSnippetStartRef.current = null;
-                }
-                reject(error);
-              },
-              resolve: () => {
-                window.clearTimeout(timeoutId);
-                if (pendingSnippetStartRef.current === marker) {
-                  pendingSnippetStartRef.current = null;
-                }
-                resolve();
-              },
-            };
-
-            pendingSnippetStartRef.current = marker;
-          });
-
-          player.loadVideoById(track.youtubeVideoId, startAt);
-          await playbackStarted;
-          return;
-        } catch (error) {
-          lastError = error;
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
-        }
-      }
-
-      if (lastError instanceof Error) {
-        throw new Error(lastError.message);
-      }
-      throw new Error("YouTube player is not ready yet.");
-    },
-    [cancelPendingSnippetStart, mainPlayerRef, waitForYouTubePlayerInstance],
-  );
-
-  const preloadTrackMetadata = useCallback((track: Track | null) => {
-    if (!track) {
-      return;
-    }
-    if (preloadedTrackIdRef.current === track.id) {
-      return;
-    }
-    preloadedTrackIdRef.current = track.id;
-
-    if (!preloadPlayerRef.current || !preloadReadyRef.current) {
-      return;
-    }
-    if (preloadPlayerRef.current.cueVideoById) {
-      preloadPlayerRef.current.cueVideoById(track.youtubeVideoId, 0);
-      return;
-    }
-    preloadPlayerRef.current.loadVideoById(track.youtubeVideoId, 0);
-    preloadPlayerRef.current.pauseVideo();
-  }, [preloadPlayerRef, preloadReadyRef]);
 
   const submitAnswer = useCallback(
     (value: string, track: Track, questionIndex: number) => {
@@ -450,7 +311,7 @@ export function QuizView() {
         setPhase((currentPhase) => (currentPhase === "playing" ? "answering" : currentPhase));
       }, snippetDurationSeconds * 1000);
     },
-    [answerMode, clearTimers, playSnippet, preloadTrackMetadata, snippetDurationSeconds, stopQuizAudio, submitAnswer],
+    [answerMode, answerIntervalRef, clearTimers, playSnippet, preloadTrackMetadata, snippetDurationSeconds, snippetTimeoutRef, stopQuizAudio, submitAnswer],
   );
 
   const createPlaylistMutation = useMutation({
