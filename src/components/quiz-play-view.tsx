@@ -21,176 +21,20 @@ import {
   coerceQuizAnswerMode,
   DEFAULT_QUIZ_ANSWER_MODE,
   getQuizAnswerModeLabel,
-  type QuizAnswerMode,
 } from "@/lib/quiz-answer-mode";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
 import { usePlayerStore } from "@/store/player-store";
-import { isQuizAnswerCorrect, normalizeQuizText } from "@/lib/quiz-text";
-
-type PlaylistDetailResponse = {
-  playlist?: {
-    id: string;
-    name: string;
-    cover: string;
-    isQuiz: boolean;
-    isPublic: boolean;
-    difficulty: QuizDifficulty;
-    answerMode: QuizAnswerMode;
-    ownerName?: string;
-    trackCount: number;
-  };
-  tracks?: Track[];
-  quizSessionToken?: string | null;
-  message?: string;
-};
+import { isQuizAnswerCorrect } from "@/lib/quiz-text";
+import {
+  type PlaylistDetailResponse,
+  type QuizToast,
+  type QuestionReview,
+  type QuizAttemptAnswer,
+} from "@/lib/quiz-types";
+import { fetchPlaylistTracks, saveQuizAttempt, isTokenExpiredError, fetchQuizAttempts } from "@/lib/quiz-api";
+import { shuffleTracks, buildMultipleChoiceOptions, getTimerAnnouncement } from "@/lib/quiz-utils";
 
 type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
-type QuizToast = { message: string; type: "error" | "success" } | null;
-type QuestionReview = {
-  trackId: string;
-  questionNumber: number;
-  correctAnswer: string;
-  userAnswer: string;
-  isCorrect: boolean;
-};
-type QuizAttemptAnswer = {
-  trackId: string;
-  userAnswer: string;
-};
-
-type QuizAttemptItem = {
-  id: string;
-  userId: string;
-  userName?: string;
-  score: number;
-  totalQuestions: number;
-  difficulty: string;
-  answerMode: string;
-  createdAt: string;
-};
-type ApiErrorPayload = {
-  code?: string;
-  message?: string;
-  details?: {
-    reason?: string;
-  };
-};
-
-class QuizAttemptSaveError extends Error {
-  code?: string;
-  reason?: string;
-
-  constructor(payload: ApiErrorPayload) {
-    super(payload.message || "Failed to save quiz attempt.");
-    this.name = "QuizAttemptSaveError";
-    this.code = payload.code;
-    this.reason = payload.details?.reason;
-  }
-}
-
-function shuffleItems<T>(list: T[]) {
-  const next = [...list];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
-  }
-  return next;
-}
-
-function shuffleTracks(list: Track[]) {
-  return shuffleItems(list);
-}
-
-function buildMultipleChoiceOptions(track: Track, tracksPool: Track[]) {
-  const normalizedCorrect = normalizeQuizText(track.title);
-  const choices: string[] = [track.title];
-  const used = new Set<string>([normalizedCorrect]);
-  const distractors = shuffleItems(
-    tracksPool.filter((candidate) => normalizeQuizText(candidate.title) !== normalizedCorrect),
-  );
-
-  for (const candidate of distractors) {
-    if (choices.length >= 4) {
-      break;
-    }
-    const normalizedCandidate = normalizeQuizText(candidate.title);
-    if (used.has(normalizedCandidate)) {
-      continue;
-    }
-    used.add(normalizedCandidate);
-    choices.push(candidate.title);
-  }
-
-  while (choices.length < 4) {
-    choices.push(`Pilihan lain ${choices.length}`);
-  }
-
-  return shuffleItems(choices);
-}
-
-function getTimerAnnouncement(secondsLeft: number) {
-  if (secondsLeft === 10) {
-    return "10 detik tersisa.";
-  }
-  if (secondsLeft <= 5 && secondsLeft >= 1) {
-    return `${secondsLeft} detik tersisa.`;
-  }
-  if (secondsLeft === 0) {
-    return "Waktu habis.";
-  }
-  return "";
-}
-
-async function fetchPlaylistTracks(playlistId: string) {
-  const response = await fetch(`/api/playlists/${playlistId}`, { cache: "no-store" });
-  const payload = (await response.json()) as PlaylistDetailResponse;
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to load playlist tracks");
-  }
-
-  return payload;
-}
-
-async function saveQuizAttempt(payload: {
-  playlistId: string;
-  difficulty: QuizDifficulty;
-  answerMode: QuizAnswerMode;
-  quizSessionToken: string;
-  answers: QuizAttemptAnswer[];
-}) {
-  const response = await fetch("/api/quiz/attempts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const parsed = (await response.json()) as ApiErrorPayload;
-  if (!response.ok) {
-    throw new QuizAttemptSaveError(parsed);
-  }
-}
-
-function isTokenExpiredError(error: unknown) {
-  return error instanceof QuizAttemptSaveError && error.code === "UNAUTHORIZED" && error.reason === "Token expired";
-}
-
-async function fetchQuizAttempts(playlistId: string) {
-  const response = await fetch(`/api/quiz/attempts?playlistId=${encodeURIComponent(playlistId)}`, {
-    cache: "no-store",
-  });
-  const parsed = (await response.json()) as {
-    leaderboard?: QuizAttemptItem[];
-    userHistory?: QuizAttemptItem[];
-    message?: string;
-  };
-  if (!response.ok) {
-    throw new Error(parsed.message || "Failed to load quiz attempts.");
-  }
-  return {
-    leaderboard: parsed.leaderboard ?? [],
-    userHistory: parsed.userHistory ?? [],
-  };
-}
 
 export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const queryClient = useQueryClient();
