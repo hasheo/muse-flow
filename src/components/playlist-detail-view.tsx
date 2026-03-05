@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
+import { formatDuration } from "@/lib/format";
 import type { Track } from "@/lib/catalog";
 import { usePlayerStore } from "@/store/player-store";
 
@@ -26,16 +27,6 @@ type PlaylistDetailResponse = {
   tracks?: Track[];
   message?: string;
 };
-
-function formatDuration(duration: number) {
-  const minutes = Math.floor(duration / 60)
-    .toString()
-    .padStart(1, "0");
-  const seconds = Math.floor(duration % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
 
 async function fetchPlaylistTracks(playlistId: string) {
   const response = await fetch(`/api/playlists/${playlistId}`, { cache: "no-store" });

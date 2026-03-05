@@ -1,6 +1,14 @@
 import type { QuizDifficulty } from "@/lib/quiz-difficulty";
 import type { QuizAnswerMode } from "@/lib/quiz-answer-mode";
+import type { PlaylistSummary } from "@/lib/playlist";
 import type { Track } from "@/lib/catalog";
+
+export type QuizPlaylistSummary = PlaylistSummary & {
+  isQuiz: boolean;
+  isPublic?: boolean;
+  difficulty: QuizDifficulty;
+  answerMode?: QuizAnswerMode;
+};
 
 export type PlaylistDetailResponse = {
   playlist?: {

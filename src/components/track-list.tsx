@@ -9,14 +9,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Track } from "@/lib/catalog";
+import { formatDuration } from "@/lib/format";
+import { fetchPlaylists, type PlaylistSummary } from "@/lib/playlist";
 import { usePlayerStore } from "@/store/player-store";
-
-type PlaylistSummary = {
-  id: string;
-  name: string;
-  cover: string;
-  trackCount: number;
-};
 
 type ApiPayload = {
   message?: string;
@@ -26,27 +21,6 @@ type ApiPayload = {
   nextPageToken?: string | null;
   hasMore?: boolean;
 };
-
-function formatDuration(duration: number) {
-  const minutes = Math.floor(duration / 60)
-    .toString()
-    .padStart(1, "0");
-  const seconds = Math.floor(duration % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
-async function fetchPlaylists() {
-  const response = await fetch("/api/playlists", { cache: "no-store" });
-  const payload = await readApiPayload(response);
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to fetch playlists");
-  }
-
-  return payload.playlists ?? [];
-}
 
 async function createPlaylist(name: string, cover?: string) {
   const response = await fetch("/api/playlists", {

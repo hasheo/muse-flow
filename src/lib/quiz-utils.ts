@@ -56,3 +56,5 @@ export function getTimerAnnouncement(secondsLeft: number) {
   }
   return "";
 }
+
+export const QUIZ_PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1, rel: 0 } as const;

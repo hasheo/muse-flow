@@ -4,26 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
 
-export type PlaylistSummary = {
-  id: string;
-  name: string;
-  cover: string;
-  trackCount: number;
-};
-
-async function fetchPlaylists() {
-  const response = await fetch("/api/playlists", { cache: "no-store" });
-  const payload = (await response.json()) as {
-    playlists?: PlaylistSummary[];
-    message?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to fetch playlists");
-  }
-
-  return payload.playlists ?? [];
-}
+import { fetchPlaylists } from "@/lib/playlist";
 
 export function LibraryView() {
   const {

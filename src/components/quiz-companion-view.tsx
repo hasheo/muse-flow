@@ -15,17 +15,10 @@ import {
   QUIZ_DIFFICULTY_OPTIONS,
   type QuizDifficulty,
 } from "@/lib/quiz-difficulty";
-import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
+import { DEFAULT_PLAYLIST_COVER, fetchPlaylists } from "@/lib/playlist";
+import { type QuizPlaylistSummary } from "@/lib/quiz-types";
+import { shuffleTracks, QUIZ_PLAYER_VARS } from "@/lib/quiz-utils";
 import { usePlayerStore } from "@/store/player-store";
-
-type PlaylistSummary = {
-  id: string;
-  name: string;
-  cover: string;
-  isQuiz: boolean;
-  difficulty: QuizDifficulty;
-  trackCount: number;
-};
 
 type PlaylistDetailResponse = {
   playlist?: {
@@ -41,29 +34,6 @@ type PlaylistDetailResponse = {
 };
 
 type CompanionPhase = "setup" | "playing" | "finished";
-
-function shuffleTracks(list: Track[]) {
-  const next = [...list];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
-  }
-  return next;
-}
-
-async function fetchPlaylists() {
-  const response = await fetch("/api/playlists", { cache: "no-store" });
-  const payload = (await response.json()) as {
-    playlists?: PlaylistSummary[];
-    message?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to load playlists");
-  }
-
-  return payload.playlists ?? [];
-}
 
 async function fetchPlaylistTracks(playlistId: string) {
   const response = await fetch(`/api/playlists/${playlistId}`, {
@@ -107,7 +77,7 @@ async function createQuizPlaylist(
   });
 
   const payload = (await response.json()) as {
-    playlist?: PlaylistSummary;
+    playlist?: QuizPlaylistSummary;
     message?: string;
   };
   if (!response.ok || !payload.playlist) {
@@ -116,8 +86,6 @@ async function createQuizPlaylist(
 
   return payload.playlist;
 }
-
-const QUIZ_PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1, rel: 0 };
 
 export function QuizCompanionView() {
   const queryClient = useQueryClient();
@@ -149,7 +117,7 @@ export function QuizCompanionView() {
 
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
-    queryFn: fetchPlaylists,
+    queryFn: () => fetchPlaylists<QuizPlaylistSummary>(),
   });
 
   const activePlaylistId = selectedPlaylistId || playlists[0]?.id || "";

@@ -24,7 +24,7 @@ import {
   QUIZ_ANSWER_MODE_OPTIONS,
   type QuizAnswerMode,
 } from "@/lib/quiz-answer-mode";
-import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
+import { DEFAULT_PLAYLIST_COVER, fetchPlaylists } from "@/lib/playlist";
 import { useQuizTimers } from "@/hooks/use-quiz-timers";
 import { useQuizPlayers } from "@/hooks/use-quiz-players";
 import { useQuizSnippetPlayback } from "@/hooks/use-quiz-snippet-playback";
@@ -32,6 +32,7 @@ import { usePlayerStore } from "@/store/player-store";
 import { isQuizAnswerCorrect } from "@/lib/quiz-text";
 import {
   type PlaylistDetailResponse,
+  type QuizPlaylistSummary,
   type QuizToast,
   type QuestionReview,
   type QuizAttemptAnswer,
@@ -39,29 +40,7 @@ import {
 import { fetchPlaylistTracks, saveQuizAttempt, isTokenExpiredError, fetchQuizAttempts } from "@/lib/quiz-api";
 import { shuffleTracks, buildMultipleChoiceOptions, getTimerAnnouncement } from "@/lib/quiz-utils";
 
-type PlaylistSummary = {
-  id: string;
-  name: string;
-  cover: string;
-  isQuiz: boolean;
-  isPublic: boolean;
-  difficulty: QuizDifficulty;
-  answerMode: QuizAnswerMode;
-  trackCount: number;
-};
-
 type QuizPhase = "setup" | "playing" | "answering" | "revealed" | "finished";
-
-async function fetchPlaylists() {
-  const response = await fetch("/api/playlists", { cache: "no-store" });
-  const payload = (await response.json()) as { playlists?: PlaylistSummary[]; message?: string };
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to load playlists");
-  }
-
-  return payload.playlists ?? [];
-}
 
 async function setPlaylistPublic(playlistId: string, isPublic: boolean) {
   const response = await fetch(`/api/playlists/${playlistId}`, {
@@ -105,7 +84,7 @@ async function createQuizPlaylist(
     }),
   });
 
-  const payload = (await response.json()) as { playlist?: PlaylistSummary; message?: string };
+  const payload = (await response.json()) as { playlist?: QuizPlaylistSummary; message?: string };
   if (!response.ok || !payload.playlist) {
     throw new Error(payload.message || "Failed to create quiz playlist");
   }
@@ -165,7 +144,7 @@ export function QuizView() {
 
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
-    queryFn: fetchPlaylists,
+    queryFn: () => fetchPlaylists<QuizPlaylistSummary>(),
   });
   const activePlaylistId = selectedPlaylistId || playlists[0]?.id || "";
   const selectedPlaylist = playlists.find((playlist) => playlist.id === activePlaylistId);
