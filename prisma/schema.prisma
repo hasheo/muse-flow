@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -25,7 +25,7 @@ model User {
 model Playlist {
   id        String          @id @default(cuid())
   name      String
-  cover     String          @default("https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=80")
+  cover     String          @default("https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=80") @db.Text
   isQuiz    Boolean         @default(false)
   isPublic  Boolean         @default(false)
   difficulty String         @default("normal")
@@ -64,10 +64,10 @@ model PlaylistTrack {
   artist         String
   album          String
   duration       Int
-  cover          String
+  cover          String   @db.Text
   youtubeVideoId String?
   mimeType       String?
-  sourcePath     String?
+  sourcePath     String?  @db.Text
   createdAt      DateTime @default(now())
   playlist       Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
 
@@ -80,12 +80,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
