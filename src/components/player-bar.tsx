@@ -46,7 +46,7 @@ export function PlayerBar() {
     <footer className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-black/85 px-4 py-3 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center gap-3 lg:gap-6">
         <div className="min-w-0 flex flex-1 items-center gap-3">
-          <Image alt={currentTrack.title} className="h-12 w-12 rounded-md object-cover" height={48} src={currentTrack.cover} unoptimized width={48} />
+          <Image alt={currentTrack.title} className="h-12 w-12 rounded-md object-cover" height={48} src={currentTrack.cover} width={48} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{currentTrack.title}</p>
             <p className="truncate text-xs text-white/60">{currentTrack.artist}</p>

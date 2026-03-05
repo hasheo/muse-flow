@@ -190,7 +190,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
             className="h-44 w-full rounded-xl object-cover"
             height={176}
             src={playlist.cover}
-            unoptimized
+           
             width={320}
           />
           <form
@@ -309,7 +309,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                     className="h-10 w-10 shrink-0 rounded-md object-cover"
                     height={40}
                     src={track.cover}
-                    unoptimized
+                   
                     width={40}
                   />
                   <div className="min-w-0">
