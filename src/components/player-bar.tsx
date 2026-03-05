@@ -16,22 +16,35 @@ function formatDuration(duration: number) {
   return `${minutes}:${seconds}`;
 }
 
+function AnalyserVisualizer() {
+  const analyserData = usePlayerStore((s) => s.analyserData);
+
+  return (
+    <div className="hidden h-8 items-end gap-[2px] lg:flex">
+      {Array.from(analyserData.slice(0, 36)).map((item, idx) => (
+        <div
+          className="w-1 rounded-sm bg-lime-400/80"
+          key={idx}
+          style={{ height: `${Math.max(8, (item / 255) * 32)}px` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function PlayerBar() {
-  const {
-    currentTrack,
-    isPlaying,
-    playbackState,
-    playbackError,
-    progress,
-    duration,
-    volume,
-    analyserData,
-    toggle,
-    previous,
-    next,
-    setVolume,
-    setProgress,
-  } = usePlayerStore((state) => state);
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const playbackState = usePlayerStore((s) => s.playbackState);
+  const playbackError = usePlayerStore((s) => s.playbackError);
+  const progress = usePlayerStore((s) => s.progress);
+  const duration = usePlayerStore((s) => s.duration);
+  const volume = usePlayerStore((s) => s.volume);
+  const toggle = usePlayerStore((s) => s.toggle);
+  const previous = usePlayerStore((s) => s.previous);
+  const next = usePlayerStore((s) => s.next);
+  const setVolume = usePlayerStore((s) => s.setVolume);
+  const setProgress = usePlayerStore((s) => s.setProgress);
 
   if (!currentTrack) {
     return null;
@@ -81,15 +94,7 @@ export function PlayerBar() {
             />
             <span className="w-10 text-xs text-white/55">{formatDuration(duration)}</span>
           </div>
-          <div className="hidden h-8 items-end gap-[2px] lg:flex">
-            {Array.from(analyserData.slice(0, 36)).map((item, idx) => (
-              <div
-                className="w-1 rounded-sm bg-lime-400/80"
-                key={idx}
-                style={{ height: `${Math.max(8, (item / 255) * 32)}px` }}
-              />
-            ))}
-          </div>
+          <AnalyserVisualizer />
         </div>
 
         <div className="hidden flex-1 items-center justify-end gap-2 md:flex">
