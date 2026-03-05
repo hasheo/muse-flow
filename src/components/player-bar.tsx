@@ -63,10 +63,10 @@ export function PlayerBar() {
 
         <div className="flex flex-1.5 flex-col gap-2">
           <div className="flex items-center justify-center gap-2">
-            <Button onClick={previous} size="icon" variant="ghost">
+            <Button aria-label="Previous track" onClick={previous} size="icon" variant="ghost">
               <SkipBack className="h-4 w-4" />
             </Button>
-            <Button onClick={toggle} size="icon" variant="default">
+            <Button aria-label={isPlaying ? "Pause" : "Play"} onClick={toggle} size="icon" variant="default">
               {playbackState === "loading" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : isPlaying ? (
@@ -75,7 +75,7 @@ export function PlayerBar() {
                 <Play className="h-4 w-4" />
               )}
             </Button>
-            <Button onClick={next} size="icon" variant="ghost">
+            <Button aria-label="Next track" onClick={next} size="icon" variant="ghost">
               <SkipForward className="h-4 w-4" />
             </Button>
           </div>
@@ -88,6 +88,7 @@ export function PlayerBar() {
           <div className="flex items-center gap-2">
             <span className="w-10 text-right text-xs text-white/55">{formatDuration(progress)}</span>
             <Slider
+              aria-label="Playback progress"
               max={duration || 1}
               onValueChange={(value) => setProgress(value[0] ?? 0)}
               value={[progress]}
@@ -100,7 +101,7 @@ export function PlayerBar() {
         <div className="hidden flex-1 items-center justify-end gap-2 md:flex">
           <Volume2 className="h-4 w-4 text-white/70" />
           <div className="w-32">
-            <Slider max={1} onValueChange={(value) => setVolume(value[0] ?? 0)} step={0.01} value={[volume]} />
+            <Slider aria-label="Volume" max={1} onValueChange={(value) => setVolume(value[0] ?? 0)} step={0.01} value={[volume]} />
           </div>
         </div>
       </div>
