@@ -69,11 +69,13 @@ export function SignInForm() {
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-2">
-            <Input {...register("email")} placeholder="Email" type="email" />
+            <label className="sr-only" htmlFor="email">Email</label>
+            <Input {...register("email")} id="email" placeholder="Email" type="email" />
             {errors.email ? <p className="text-xs text-rose-300">{errors.email.message}</p> : null}
           </div>
           <div className="space-y-2">
-            <Input {...register("password")} placeholder="Password" type="password" />
+            <label className="sr-only" htmlFor="password">Password</label>
+            <Input {...register("password")} id="password" placeholder="Password" type="password" />
             {errors.password ? <p className="text-xs text-rose-300">{errors.password.message}</p> : null}
           </div>
           {error ? <p className="text-sm text-rose-300">{error}</p> : null}
