@@ -221,7 +221,7 @@ export function QuizPublicLibraryView() {
               className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
               height={176}
               src={playlist.cover}
-              unoptimized
+             
               width={420}
             />
             <div className="space-y-2 p-4">

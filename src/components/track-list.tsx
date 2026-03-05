@@ -300,7 +300,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
               alt={track.title}
               className="h-10 w-10 shrink-0 rounded-md object-cover"
               src={track.cover}
-              unoptimized
+             
               width={40}
               height={40}
             />

@@ -1004,7 +1004,6 @@ export function QuizView() {
                         className="h-8 w-8 rounded object-cover"
                         height={32}
                         src={track.cover}
-                        unoptimized
                         width={32}
                       />
                       <div className="min-w-0">

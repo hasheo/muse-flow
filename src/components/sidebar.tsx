@@ -116,7 +116,7 @@ export function Sidebar() {
         <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-3">
           <p className="text-xs uppercase text-white/50">Now playing</p>
           <div className="mt-2 flex items-center gap-3">
-            <Image alt={currentTrack.title} className="h-10 w-10 rounded-md object-cover" height={40} src={currentTrack.cover} unoptimized width={40} />
+            <Image alt={currentTrack.title} className="h-10 w-10 rounded-md object-cover" height={40} src={currentTrack.cover} width={40} />
             <div className="min-w-0">
               <p className="truncate font-medium">{currentTrack.title}</p>
               <p className="truncate text-sm text-white/70">{currentTrack.artist}</p>
