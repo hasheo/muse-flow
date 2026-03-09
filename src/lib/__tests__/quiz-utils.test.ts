@@ -76,19 +76,19 @@ describe("buildMultipleChoiceOptions", () => {
 
 describe("getTimerAnnouncement", () => {
   it("announces at 10 seconds", () => {
-    expect(getTimerAnnouncement(10)).toBe("10 detik tersisa.");
+    expect(getTimerAnnouncement(10)).toBe("10 seconds remaining.");
   });
 
   it("announces at 5 seconds", () => {
-    expect(getTimerAnnouncement(5)).toBe("5 detik tersisa.");
+    expect(getTimerAnnouncement(5)).toBe("5 seconds remaining.");
   });
 
   it("announces at 1 second", () => {
-    expect(getTimerAnnouncement(1)).toBe("1 detik tersisa.");
+    expect(getTimerAnnouncement(1)).toBe("1 seconds remaining.");
   });
 
   it("announces timeout at 0", () => {
-    expect(getTimerAnnouncement(0)).toBe("Waktu habis.");
+    expect(getTimerAnnouncement(0)).toBe("Time's up.");
   });
 
   it("returns empty string for non-announcement values", () => {

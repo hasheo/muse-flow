@@ -79,7 +79,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     },
     onSuccess: async () => {
       setActionError(null);
-      setActionMessage("Track berhasil dihapus dari playlist.");
+      setActionMessage("Track removed from playlist.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
@@ -108,7 +108,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     },
     onSuccess: async () => {
       setActionError(null);
-      setActionMessage("Urutan lagu berhasil diperbarui.");
+      setActionMessage("Track order updated.");
       await queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] });
     },
     onError: (e) => {
@@ -132,7 +132,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     },
     onSuccess: async () => {
       setActionError(null);
-      setActionMessage("Playlist berhasil diperbarui.");
+      setActionMessage("Playlist updated.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
@@ -171,7 +171,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   }
 
   if (!playlistDetail?.playlist) {
-    return <p className="text-sm text-white/70">Playlist tidak ditemukan.</p>;
+    return <p className="text-sm text-white/70">Playlist not found.</p>;
   }
 
   const playlist = playlistDetail.playlist;
@@ -203,7 +203,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
 
               if (!name) {
                 setActionMessage(null);
-                setActionError("Nama playlist tidak boleh kosong.");
+                setActionError("Playlist name cannot be empty.");
                 return;
               }
 
@@ -257,7 +257,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
           <span className="text-right">Action</span>
         </div>
 
-        {!tracks.length ? <p className="px-4 py-4 text-sm text-white/65">Playlist ini belum punya lagu.</p> : null}
+        {!tracks.length ? <p className="px-4 py-4 text-sm text-white/65">This playlist has no tracks yet.</p> : null}
 
         {tracks.map((track) => {
           const active = currentTrack?.id === track.id;
@@ -354,9 +354,9 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         })}
       </section>
       <ConfirmDialog
-        cancelLabel="Batal"
-        confirmLabel="Hapus Playlist"
-        description={`Playlist "${playlist.name}" dan semua lagu di dalamnya akan dihapus permanen.`}
+        cancelLabel="Cancel"
+        confirmLabel="Delete Playlist"
+        description={`Playlist "${playlist.name}" and all its tracks will be permanently deleted.`}
         isConfirming={deletePlaylistMutation.isPending}
         onCancel={() => {
           if (deletePlaylistMutation.isPending) {
@@ -370,7 +370,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
           deletePlaylistMutation.mutate();
         }}
         open={isDeleteConfirmOpen}
-        title="Hapus playlist ini?"
+        title="Delete this playlist?"
       />
     </div>
   );

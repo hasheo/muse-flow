@@ -33,7 +33,7 @@ export function LibraryView() {
       <div className="rounded-2xl border border-white/10 bg-black/35 p-6">
         <p className="text-lg font-semibold">Your Library is empty</p>
         <p className="mt-2 text-sm text-white/65">
-          Buat playlist dulu dari halaman Home, lalu simpan lagu favoritmu.
+          Create a playlist on the Home page, then save your favorite tracks.
         </p>
       </div>
     );

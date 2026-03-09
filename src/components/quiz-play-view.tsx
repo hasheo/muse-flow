@@ -126,10 +126,10 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
       setMultipleChoiceOptions([]);
       setToast({
         type: isCorrect ? "success" : "error",
-        message: isCorrect ? "Jawaban benar! +1 poin" : "Jawaban salah.",
+        message: isCorrect ? "Correct answer! +1 point" : "Wrong answer.",
       });
       setLastResult(isCorrect);
-      setFeedbackMessage(isCorrect ? "Benar!" : `Salah. Jawaban benar: ${track.title}`);
+      setFeedbackMessage(isCorrect ? "Correct!" : `Wrong. The answer was: ${track.title}`);
       setPhase("revealed");
     },
     [clearTimers, stopQuizAudio],
@@ -193,12 +193,12 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const startQuizFromTracks = useCallback(
     async (tracks: Track[]) => {
       if (!tracks.length) {
-        setErrorMessage("Playlist tidak punya lagu untuk quiz.");
+        setErrorMessage("This playlist has no tracks for the quiz.");
         setPhase("finished");
         return;
       }
       if (answerMode === "multiple_choice" && tracks.length < 4) {
-        setErrorMessage("Mode pilihan ganda butuh minimal 4 lagu di playlist.");
+        setErrorMessage("Multiple choice mode requires at least 4 tracks in the playlist.");
         setPhase("ready");
         return;
       }
@@ -302,7 +302,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
 
   return (
     <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
-      {isLoading ? <p className="mb-3 text-sm text-white/70">Menyiapkan quiz...</p> : null}
+      {isLoading ? <p className="mb-3 text-sm text-white/70">Loading quiz...</p> : null}
       <div className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-sm text-white/70">
@@ -332,13 +332,13 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
       {phase === "ready" ? (
         <div className="space-y-3">
           <p className="text-sm text-white/70">
-            Playlist ini berisi {playlistData?.tracks?.length ?? 0} lagu.
+            This playlist contains {playlistData?.tracks?.length ?? 0} tracks.
           </p>
           <p className="text-xs text-white/55">
-            Difficulty playlist: {getQuizDifficultyLabel(playlistData?.playlist?.difficulty ?? DEFAULT_QUIZ_DIFFICULTY)}
+            Difficulty: {getQuizDifficultyLabel(playlistData?.playlist?.difficulty ?? DEFAULT_QUIZ_DIFFICULTY)}
           </p>
           <p className="text-xs text-white/55">
-            Mode jawaban playlist: {getQuizAnswerModeLabel(answerMode)}
+            Answer mode: {getQuizAnswerModeLabel(answerMode)}
           </p>
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.2em] text-white/50">Difficulty</p>
@@ -377,8 +377,8 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
           {phase === "playing" || phase === "answering" ? (
             <p className="min-h-10 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
               {phase === "playing"
-                ? `Playing ${snippetDurationSeconds}-second snippet... dengarkan baik-baik.`
-                : "Snippet selesai. Pilih jawaban."}
+                ? `Playing ${snippetDurationSeconds}-second snippet... listen carefully.`
+                : "Snippet finished. Choose your answer."}
             </p>
           ) : null}
 
@@ -393,15 +393,15 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                 submitAnswer(answerInput, currentTrack, currentIndex);
               }}
             >
-              <p className="text-sm text-lime-300">Waktu menjawab: {timeLeft} detik</p>
+              <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
               {phase === "playing" ? (
-                <p className="text-xs text-white/65">Snippet sedang diputar. Kamu bisa jawab sekarang.</p>
+                <p className="text-xs text-white/65">Snippet is playing. You can answer now.</p>
               ) : null}
               <p aria-live="polite" className="sr-only" role="status">
                 {timerAnnouncement}
               </p>
               <div
-                aria-label="Sisa waktu menjawab"
+                aria-label="Answer time remaining"
                 aria-valuemax={15}
                 aria-valuemin={0}
                 aria-valuenow={timeLeft}
@@ -415,7 +415,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
               </div>
               <Input
                 onChange={(event) => setAnswerInput(event.target.value)}
-                placeholder="Tebak judul lagunya..."
+                placeholder="Guess the song title..."
                 value={answerInput}
               />
               <Button type="submit">Submit Answer</Button>
@@ -424,17 +424,17 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
 
           {(phase === "playing" || phase === "answering") && answerMode === "multiple_choice" ? (
             <div className="space-y-2">
-              <p className="text-sm text-lime-300">Waktu menjawab: {timeLeft} detik</p>
+              <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
               <p className="min-h-5 text-xs text-white/65">
                 {phase === "playing"
-                  ? "Snippet sedang diputar. Kamu bisa jawab sekarang."
-                  : "Snippet selesai. Jawab sekarang."}
+                  ? "Snippet is playing. You can answer now."
+                  : "Snippet finished. Answer now."}
               </p>
               <p aria-live="polite" className="sr-only" role="status">
                 {timerAnnouncement}
               </p>
               <div
-                aria-label="Sisa waktu menjawab"
+                aria-label="Answer time remaining"
                 aria-valuemax={15}
                 aria-valuemin={0}
                 aria-valuenow={timeLeft}
@@ -480,9 +480,9 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
 
       {phase === "finished" ? (
         <div className="space-y-2">
-          <p className="text-lg font-semibold">Quiz selesai</p>
+          <p className="text-lg font-semibold">Quiz finished</p>
           <p className="text-sm text-white/70">
-            Skor akhir: {score}/{quizTracks.length}
+            Final score: {score}/{quizTracks.length}
           </p>
           <div className="mt-2 grid gap-3 lg:grid-cols-2">
             <div className="rounded-lg border border-white/10 bg-white/5 p-3">
@@ -496,12 +496,12 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                     </p>
                   ))
                 ) : (
-                  <p className="text-white/50">Belum ada data leaderboard.</p>
+                  <p className="text-white/50">No leaderboard data yet.</p>
                 )}
               </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Riwayat Kamu</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Your History</p>
               <div className="mt-2 space-y-1 text-sm">
                 {(attemptsData?.userHistory ?? []).length ? (
                   (attemptsData?.userHistory ?? []).map((attempt) => (
@@ -512,7 +512,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                     </p>
                   ))
                 ) : (
-                  <p className="text-white/50">Belum ada attempt sebelumnya.</p>
+                  <p className="text-white/50">No previous attempts.</p>
                 )}
               </div>
             </div>
@@ -526,15 +526,15 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                   .map((entry) => (
                     <div className="rounded-md border border-white/10 px-3 py-2" key={entry.questionNumber}>
                       <p className="text-sm text-white/80">Q{entry.questionNumber}</p>
-                      <p className="text-sm text-white/65">Jawabanmu: {entry.userAnswer || "Tidak dijawab"}</p>
-                      <p className="text-sm text-white/65">Benar: {entry.correctAnswer}</p>
+                      <p className="text-sm text-white/65">Your answer: {entry.userAnswer || "Not answered"}</p>
+                      <p className="text-sm text-white/65">Correct: {entry.correctAnswer}</p>
                       <p className={`text-sm ${entry.isCorrect ? "text-lime-300" : "text-amber-300"}`}>
                         {entry.isCorrect ? "Correct" : "Wrong"}
                       </p>
                     </div>
                   ))
               ) : (
-                <p className="text-sm text-white/50">Belum ada jawaban untuk direview.</p>
+                <p className="text-sm text-white/50">No answers to review yet.</p>
               )}
             </div>
           </div>
@@ -553,14 +553,14 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={mainContainerRef} />
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={preloadContainerRef} />
       <ConfirmDialog
-        cancelLabel="Lanjut Quiz"
+        cancelLabel="Continue Quiz"
         confirmLabel="Finish Quiz"
-        description="Kamu akan menyelesaikan quiz ini dan skor akan disimpan."
+        description="You will finish this quiz and your score will be saved."
         isConfirming={isFinishingQuiz}
         onCancel={cancelFinishQuiz}
         onConfirm={() => void finishQuiz()}
         open={isFinishConfirmOpen}
-        title="Selesaikan quiz sekarang?"
+        title="Finish quiz now?"
       />
     </section>
   );
