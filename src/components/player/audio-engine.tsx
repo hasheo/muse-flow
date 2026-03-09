@@ -198,11 +198,11 @@ export function AudioEngine() {
             if (!didSchedule) {
               store.setPlaying(false);
               store.setPlaybackState("error");
-              store.setPlaybackError("Gagal memutar stream YouTube. Coba putar lagi.");
+              store.setPlaybackError("Failed to play YouTube stream. Try playing again.");
               clearYoutubeSync();
             } else {
               store.setPlaybackState("loading");
-              store.setPlaybackError("Koneksi terganggu, mencoba memutar ulang...");
+              store.setPlaybackError("Connection interrupted, retrying playback...");
             }
           },
         },

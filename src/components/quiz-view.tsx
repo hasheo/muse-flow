@@ -229,7 +229,7 @@ export function QuizView() {
       setMultipleChoiceOptions([]);
       setToast({
         type: isCorrect ? "success" : "error",
-        message: isCorrect ? "Jawaban benar! +1 poin" : "Jawaban salah.",
+        message: isCorrect ? "Correct answer! +1 point" : "Wrong answer.",
       });
       setLastResult(isCorrect);
       setFeedbackMessage(isCorrect ? "Benar!" : `Salah. Jawaban benar: ${track.title}`);
@@ -570,7 +570,7 @@ export function QuizView() {
   const startQuiz = async (playlistIdOverride?: string) => {
     const targetPlaylistId = playlistIdOverride || activePlaylistId;
     if (!targetPlaylistId) {
-      setErrorMessage("Pilih playlist terlebih dahulu.");
+      setErrorMessage("Please select a playlist first.");
       return;
     }
 
@@ -601,11 +601,11 @@ export function QuizView() {
 
     const tracks = payload.tracks ?? [];
     if (tracks.length < 1) {
-      setErrorMessage("Playlist tidak punya lagu untuk quiz.");
+      setErrorMessage("This playlist has no tracks for the quiz.");
       return;
     }
     if (answerMode === "multiple_choice" && tracks.length < 4) {
-      setErrorMessage("Mode pilihan ganda butuh minimal 4 lagu di playlist.");
+      setErrorMessage("Multiple choice mode requires at least 4 tracks in the playlist.");
       return;
     }
 
@@ -698,7 +698,7 @@ export function QuizView() {
       return;
     }
     if (answerMode === "multiple_choice" && quizTracks.length < 4) {
-      setErrorMessage("Mode pilihan ganda butuh minimal 4 lagu di playlist.");
+      setErrorMessage("Multiple choice mode requires at least 4 tracks in the playlist.");
       setPhase("setup");
       return;
     }
@@ -779,7 +779,7 @@ export function QuizView() {
                 value={activePlaylistId}
               >
                 <option className="text-black" value="">
-                  Pilih playlist...
+                  Select playlist...
                 </option>
                 {playlists.map((playlist) => (
                   <option className="text-black" key={playlist.id} value={playlist.id}>
@@ -792,7 +792,7 @@ export function QuizView() {
 
               <Input
                 onChange={(event) => setNewPlaylistName(event.target.value)}
-                placeholder="Buat playlist quiz baru..."
+                placeholder="Create a new quiz playlist..."
                 value={newPlaylistName}
               />
 
@@ -801,7 +801,7 @@ export function QuizView() {
                 onClick={() => {
                   const name = newPlaylistName.trim();
                   if (!name) {
-                    setErrorMessage("Nama playlist quiz tidak boleh kosong.");
+                    setErrorMessage("Quiz playlist name cannot be empty.");
                     return;
                   }
                   createPlaylistMutation.mutate({
@@ -842,7 +842,7 @@ export function QuizView() {
                   }}
                   type="checkbox"
                 />
-                Jadikan playlist ini public
+                Make this playlist public
               </label>
             ) : null}
 
@@ -889,7 +889,7 @@ export function QuizView() {
             <div className="flex gap-2">
               <Button disabled={!activePlaylistId || saveQuizSettingsMutation.isPending} onClick={() => {
                 if (!activePlaylistId) {
-                  setErrorMessage("Pilih playlist terlebih dahulu.");
+                  setErrorMessage("Please select a playlist first.");
                   return;
                 }
                 setErrorMessage(null);
@@ -964,7 +964,7 @@ export function QuizView() {
                             disabled={!activePlaylistId || alreadyAdded || savingTrackId === track.id}
                             onClick={() => {
                               if (!activePlaylistId) {
-                                setErrorMessage("Pilih playlist quiz terlebih dahulu.");
+                                setErrorMessage("Please select a quiz playlist first.");
                                 return;
                               }
                               setSavingTrackId(track.id);
@@ -1030,7 +1030,7 @@ export function QuizView() {
                     </div>
                   ))}
                   {!activePlaylistData?.tracks?.length ? (
-                    <p className="text-xs text-white/65">Belum ada lagu di playlist ini.</p>
+                    <p className="text-xs text-white/65">No tracks in this playlist yet.</p>
                   ) : null}
                 </div>
               </div>
@@ -1047,8 +1047,8 @@ export function QuizView() {
             {phase === "playing" || phase === "answering" ? (
               <p className="min-h-10 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
                 {phase === "playing"
-                  ? `Playing ${snippetDurationSeconds}-second snippet... dengarkan baik-baik.`
-                  : "Snippet selesai. Pilih jawaban."}
+                  ? `Playing ${snippetDurationSeconds}-second snippet... listen carefully.`
+                  : "Snippet finished. Choose your answer."}
               </p>
             ) : null}
 
@@ -1063,15 +1063,15 @@ export function QuizView() {
                   submitAnswer(answerInput, currentTrack, currentIndex);
                 }}
               >
-                <p className="text-sm text-lime-300">Waktu menjawab: {timeLeft} detik</p>
+                <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
                 {phase === "playing" ? (
-                  <p className="text-xs text-white/65">Snippet sedang diputar. Kamu bisa jawab sekarang.</p>
+                  <p className="text-xs text-white/65">Snippet is playing. You can answer now.</p>
                 ) : null}
                 <p aria-live="polite" className="sr-only" role="status">
                   {timerAnnouncement}
                 </p>
                 <div
-                  aria-label="Sisa waktu menjawab"
+                  aria-label="Answer time remaining"
                   aria-valuemax={15}
                   aria-valuemin={0}
                   aria-valuenow={timeLeft}
@@ -1085,7 +1085,7 @@ export function QuizView() {
                 </div>
                 <Input
                   onChange={(event) => setAnswerInput(event.target.value)}
-                  placeholder="Tebak judul lagunya..."
+                  placeholder="Guess the song title..."
                   value={answerInput}
                 />
                 <Button type="submit">Submit Answer</Button>
@@ -1094,17 +1094,17 @@ export function QuizView() {
 
             {(phase === "playing" || phase === "answering") && answerMode === "multiple_choice" ? (
               <div className="space-y-2">
-                <p className="text-sm text-lime-300">Waktu menjawab: {timeLeft} detik</p>
+                <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
                 <p className="min-h-5 text-xs text-white/65">
                   {phase === "playing"
-                    ? "Snippet sedang diputar. Kamu bisa jawab sekarang."
-                    : "Snippet selesai. Jawab sekarang."}
+                    ? "Snippet is playing. You can answer now."
+                    : "Snippet finished. Answer now."}
                 </p>
                 <p aria-live="polite" className="sr-only" role="status">
                   {timerAnnouncement}
                 </p>
                 <div
-                  aria-label="Sisa waktu menjawab"
+                  aria-label="Answer time remaining"
                   aria-valuemax={15}
                   aria-valuemin={0}
                   aria-valuenow={timeLeft}
@@ -1150,9 +1150,9 @@ export function QuizView() {
 
         {phase === "finished" ? (
           <div className="mt-3 space-y-2">
-            <p className="text-lg font-semibold">Quiz selesai</p>
+            <p className="text-lg font-semibold">Quiz finished</p>
             <p className="text-sm text-white/70">
-              Skor akhir: {score}/{quizTracks.length}
+              Final score: {score}/{quizTracks.length}
             </p>
             <div className="mt-2 grid gap-3 lg:grid-cols-2">
               <div className="rounded-lg border border-white/10 bg-white/5 p-3">
@@ -1166,12 +1166,12 @@ export function QuizView() {
                       </p>
                     ))
                   ) : (
-                    <p className="text-white/50">Belum ada data leaderboard.</p>
+                    <p className="text-white/50">No leaderboard data yet.</p>
                   )}
                 </div>
               </div>
               <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/50">Riwayat Kamu</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-white/50">Your History</p>
                 <div className="mt-2 space-y-1 text-sm">
                   {(attemptsData?.userHistory ?? []).length ? (
                     (attemptsData?.userHistory ?? []).map((attempt) => (
@@ -1182,7 +1182,7 @@ export function QuizView() {
                       </p>
                     ))
                   ) : (
-                    <p className="text-white/50">Belum ada attempt sebelumnya.</p>
+                    <p className="text-white/50">No previous attempts.</p>
                   )}
                 </div>
               </div>
@@ -1196,15 +1196,15 @@ export function QuizView() {
                     .map((entry) => (
                       <div className="rounded-md border border-white/10 px-3 py-2" key={entry.questionNumber}>
                         <p className="text-sm text-white/80">Q{entry.questionNumber}</p>
-                        <p className="text-sm text-white/65">Jawabanmu: {entry.userAnswer || "Tidak dijawab"}</p>
-                        <p className="text-sm text-white/65">Benar: {entry.correctAnswer}</p>
+                        <p className="text-sm text-white/65">Your answer: {entry.userAnswer || "Not answered"}</p>
+                        <p className="text-sm text-white/65">Correct: {entry.correctAnswer}</p>
                         <p className={`text-sm ${entry.isCorrect ? "text-lime-300" : "text-amber-300"}`}>
                           {entry.isCorrect ? "Correct" : "Wrong"}
                         </p>
                       </div>
                     ))
                 ) : (
-                  <p className="text-sm text-white/50">Belum ada jawaban untuk direview.</p>
+                  <p className="text-sm text-white/50">No answers to review yet.</p>
                 )}
               </div>
             </div>
@@ -1225,14 +1225,14 @@ export function QuizView() {
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={mainContainerRef} />
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={preloadContainerRef} />
       <ConfirmDialog
-        cancelLabel="Lanjut Quiz"
+        cancelLabel="Continue Quiz"
         confirmLabel="Finish Quiz"
-        description="Kamu akan menyelesaikan quiz ini dan skor akan disimpan."
+        description="You will finish this quiz and your score will be saved."
         isConfirming={isFinishingQuiz}
         onCancel={cancelFinishQuiz}
         onConfirm={() => void finishQuiz()}
         open={isFinishConfirmOpen}
-        title="Selesaikan quiz sekarang?"
+        title="Finish quiz now?"
       />
     </div>
   );

@@ -1,16 +1,21 @@
+import { getServerSession } from "next-auth";
 import Image from "next/image";
 
 import { SignOutButton } from "@/components/sign-out-button";
 import { TrackList } from "@/components/track-list";
 import { tracks } from "@/lib/catalog";
+import { authOptions } from "@/lib/auth";
 
-export default function AppPage() {
+export default async function AppPage() {
+  const session = await getServerSession(authOptions);
+  const username = session?.user?.name ?? "there";
+
   return (
     <>
       <header className="mb-8 flex items-center justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-white/50">Welcome back</p>
-          <h1 className="text-4xl font-bold tracking-tight">Flow Mix</h1>
+          <h1 className="text-4xl font-bold tracking-tight">{username}</h1>
         </div>
         <SignOutButton />
       </header>

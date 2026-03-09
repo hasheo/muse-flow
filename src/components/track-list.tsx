@@ -127,12 +127,12 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
       setNewPlaylistCover("");
       setSelectedPlaylistId(playlist.id);
       setSaveError(null);
-      setSaveMessage(`Playlist \"${playlist.name}\" berhasil dibuat.`);
+      setSaveMessage(`Playlist "${playlist.name}" created.`);
       void queryClient.invalidateQueries({ queryKey: ["playlists"] });
     },
     onError: (error) => {
       setSaveMessage(null);
-      setSaveError(error instanceof Error ? error.message : "Gagal membuat playlist.");
+      setSaveError(error instanceof Error ? error.message : "Failed to create playlist.");
     },
   });
 
@@ -255,7 +255,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
     const name = newPlaylistName.trim();
     if (!name) {
       setSaveMessage(null);
-      setSaveError("Nama playlist tidak boleh kosong.");
+      setSaveError("Playlist name cannot be empty.");
       return;
     }
     createPlaylistMutation.mutate({ name, cover: newPlaylistCover.trim() || undefined });
@@ -264,7 +264,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   const onSaveTrack = async (track: Track) => {
     if (!selectedPlaylistId) {
       setSaveMessage(null);
-      setSaveError("Pilih playlist dulu sebelum menyimpan lagu.");
+      setSaveError("Please select a playlist before saving a track.");
       return;
     }
 
@@ -275,10 +275,10 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
     try {
       await saveTrackToPlaylist(selectedPlaylistId, track);
       const playlistName = playlists.find((item) => item.id === selectedPlaylistId)?.name || "playlist";
-      setSaveMessage(`\"${track.title}\" disimpan ke ${playlistName}.`);
+      setSaveMessage(`"${track.title}" saved to ${playlistName}.`);
       void queryClient.invalidateQueries({ queryKey: ["playlists"] });
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Gagal menyimpan lagu.");
+      setSaveError(error instanceof Error ? error.message : "Failed to save track.");
     } finally {
       setSavingTrackId(null);
     }
@@ -336,7 +336,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           value={selectedPlaylistId}
         >
           <option className="text-black" value="">
-            Pilih playlist...
+            Select playlist...
           </option>
           {playlists.map((playlist) => (
             <option className="text-black" key={playlist.id} value={playlist.id}>
@@ -347,7 +347,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
 
         <Input
           onChange={(event) => setNewPlaylistName(event.target.value)}
-          placeholder="Buat playlist baru..."
+          placeholder="Create a new playlist..."
           value={newPlaylistName}
         />
         <Input

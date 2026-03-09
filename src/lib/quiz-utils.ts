@@ -38,7 +38,7 @@ export function buildMultipleChoiceOptions(track: Track, tracksPool: Track[]) {
   }
 
   while (choices.length < 4) {
-    choices.push(`Pilihan lain ${choices.length}`);
+    choices.push(`Other option ${choices.length}`);
   }
 
   return shuffleItems(choices);
@@ -46,13 +46,13 @@ export function buildMultipleChoiceOptions(track: Track, tracksPool: Track[]) {
 
 export function getTimerAnnouncement(secondsLeft: number) {
   if (secondsLeft === 10) {
-    return "10 detik tersisa.";
+    return "10 seconds remaining.";
   }
   if (secondsLeft <= 5 && secondsLeft >= 1) {
-    return `${secondsLeft} detik tersisa.`;
+    return `${secondsLeft} seconds remaining.`;
   }
   if (secondsLeft === 0) {
-    return "Waktu habis.";
+    return "Time's up.";
   }
   return "";
 }

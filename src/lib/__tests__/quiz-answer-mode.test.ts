@@ -24,7 +24,7 @@ describe("coerceQuizAnswerMode", () => {
 
 describe("getQuizAnswerModeLabel", () => {
   it("returns correct labels", () => {
-    expect(getQuizAnswerModeLabel("typed")).toBe("Ketik Jawaban");
-    expect(getQuizAnswerModeLabel("multiple_choice")).toBe("Pilihan Ganda (4 opsi)");
+    expect(getQuizAnswerModeLabel("typed")).toBe("Type Answer");
+    expect(getQuizAnswerModeLabel("multiple_choice")).toBe("Multiple Choice (4 options)");
   });
 });

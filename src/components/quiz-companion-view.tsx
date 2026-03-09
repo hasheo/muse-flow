@@ -257,7 +257,7 @@ export function QuizCompanionView() {
 
   const startCompanion = async () => {
     if (!activePlaylistId) {
-      setErrorMessage("Pilih playlist terlebih dahulu.");
+      setErrorMessage("Please select a playlist first.");
       return;
     }
 
@@ -279,7 +279,7 @@ export function QuizCompanionView() {
 
     const tracks = payload.tracks ?? [];
     if (tracks.length < 1) {
-      setErrorMessage("Playlist tidak punya lagu untuk companion.");
+      setErrorMessage("This playlist has no tracks for companion.");
       return;
     }
 
@@ -343,7 +343,7 @@ export function QuizCompanionView() {
                 value={activePlaylistId}
               >
                 <option className="text-black" value="">
-                  Pilih playlist...
+                  Select playlist...
                 </option>
                 {playlists.map((playlist) => (
                   <option
@@ -359,7 +359,7 @@ export function QuizCompanionView() {
 
               <Input
                 onChange={(event) => setNewPlaylistName(event.target.value)}
-                placeholder="Buat playlist quiz baru..."
+                placeholder="Create a new quiz playlist..."
                 value={newPlaylistName}
               />
 
@@ -368,7 +368,7 @@ export function QuizCompanionView() {
                 onClick={() => {
                   const name = newPlaylistName.trim();
                   if (!name) {
-                    setErrorMessage("Nama playlist quiz tidak boleh kosong.");
+                    setErrorMessage("Quiz playlist name cannot be empty.");
                     return;
                   }
                   createPlaylistMutation.mutate({
@@ -417,7 +417,7 @@ export function QuizCompanionView() {
                 disabled={!activePlaylistId || saveQuizSettingsMutation.isPending}
                 onClick={() => {
                   if (!activePlaylistId) {
-                    setErrorMessage("Pilih playlist terlebih dahulu.");
+                    setErrorMessage("Please select a playlist first.");
                     return;
                   }
                   setErrorMessage(null);
@@ -448,8 +448,8 @@ export function QuizCompanionView() {
               Question {currentIndex + 1}/{quizTracks.length}
             </p>
             <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
-              Dengarkan snippet {snippetDurationSeconds} detik, tebak lagunya secara offline, lalu
-              lanjut ke pertanyaan berikutnya.
+              Listen to the {snippetDurationSeconds}-second snippet, guess the song offline, then
+              move on to the next question.
             </p>
             <div className="flex gap-2">
               <Button
@@ -478,9 +478,9 @@ export function QuizCompanionView() {
 
         {phase === "finished" ? (
           <div className="mt-3 space-y-2">
-            <p className="text-lg font-semibold">Companion selesai</p>
+            <p className="text-lg font-semibold">Companion finished</p>
             <p className="text-sm text-white/70">
-              Semua pertanyaan sudah diputar ({quizTracks.length} lagu).
+              All questions have been played ({quizTracks.length} tracks).
             </p>
             <div className="flex gap-2">
               <Button
