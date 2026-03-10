@@ -785,7 +785,7 @@ export function QuizView() {
                   <option className="text-black" key={playlist.id} value={playlist.id}>
                     {playlist.name} ({playlist.trackCount}) {playlist.isQuiz ? "[Quiz]" : ""}{" "}
                     {playlist.isPublic ? "[Public]" : ""} [{getQuizDifficultyLabel(playlist.difficulty)} |{" "}
-                    {getQuizAnswerModeLabel(playlist.answerMode)}]
+                    {getQuizAnswerModeLabel(coerceQuizAnswerMode(playlist.answerMode))}]
                   </option>
                 ))}
               </select>
