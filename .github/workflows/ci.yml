@@ -9,7 +9,7 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: file:./dev.db
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-secret-change-me
       YOUTUBE_API_KEY: ci-placeholder
