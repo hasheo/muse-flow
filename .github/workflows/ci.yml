@@ -8,8 +8,22 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: file:./dev.db
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-secret-change-me
       YOUTUBE_API_KEY: ci-placeholder
@@ -29,6 +43,9 @@ jobs:
 
       - name: Generate Prisma Client
         run: npx prisma generate
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
 
       - name: Lint
         run: npm run lint
