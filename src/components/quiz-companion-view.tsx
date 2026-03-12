@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
-import { Input } from "@/components/ui/input";
 import type { Track } from "@/lib/catalog";
 import {
   DEFAULT_QUIZ_DIFFICULTY,
@@ -52,7 +52,7 @@ async function setQuizSettings(playlistId: string, difficulty: QuizDifficulty) {
   const response = await fetch(`/api/playlists/${playlistId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ difficulty }),
+    body: JSON.stringify({ isQuiz: true, difficulty }),
   });
   const payload = (await response.json()) as { message?: string };
   if (!response.ok) {
@@ -92,8 +92,7 @@ export function QuizCompanionView() {
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
-  const [newPlaylistName, setNewPlaylistName] = useState("");
-  const [newPlaylistCover, setNewPlaylistCover] = useState("");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [phase, setPhase] = useState<CompanionPhase>("setup");
   const [quizTracks, setQuizTracks] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -149,8 +148,7 @@ export function QuizCompanionView() {
       difficulty: QuizDifficulty;
     }) => createQuizPlaylist(name, difficulty, cover),
     onSuccess: async (playlist) => {
-      setNewPlaylistName("");
-      setNewPlaylistCover("");
+      setIsCreateDialogOpen(false);
       setSelectedPlaylistId(playlist.id);
       setErrorMessage(null);
       await queryClient.invalidateQueries({ queryKey: ["playlists"] });
@@ -333,9 +331,9 @@ export function QuizCompanionView() {
 
         {phase === "setup" ? (
           <div className="mt-3 space-y-3">
-            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <div className="flex gap-2">
               <select
-                className="h-10 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
+                className="h-10 min-w-0 flex-1 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
                 onChange={(event) => {
                   setSelectedPlaylistId(event.target.value);
                   setDifficultyOverride(null);
@@ -357,47 +355,34 @@ export function QuizCompanionView() {
                 ))}
               </select>
 
-              <Input
-                onChange={(event) => setNewPlaylistName(event.target.value)}
-                placeholder="Create a new quiz playlist..."
-                value={newPlaylistName}
-              />
-
               <Button
-                disabled={createPlaylistMutation.isPending}
-                onClick={() => {
-                  const name = newPlaylistName.trim();
-                  if (!name) {
-                    setErrorMessage("Quiz playlist name cannot be empty.");
-                    return;
-                  }
-                  createPlaylistMutation.mutate({
-                    name,
-                    cover: newPlaylistCover.trim() || undefined,
-                    difficulty,
-                  });
-                }}
+                onClick={() => setIsCreateDialogOpen(true)}
                 type="button"
                 variant="ghost"
               >
-                {createPlaylistMutation.isPending
-                  ? "Creating..."
-                  : "Create Quiz Playlist"}
+                + New
               </Button>
             </div>
 
-            <Input
-              onChange={(event) => setNewPlaylistCover(event.target.value)}
-              placeholder="Cover URL playlist quiz (optional)"
-              value={newPlaylistCover}
+            <CreatePlaylistDialog
+              open={isCreateDialogOpen}
+              isCreating={createPlaylistMutation.isPending}
+              onCancel={() => setIsCreateDialogOpen(false)}
+              onConfirm={(name, cover) => {
+                createPlaylistMutation.mutate({
+                  name,
+                  cover: cover || undefined,
+                  difficulty,
+                });
+              }}
             />
 
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-[0.2em] text-white/50">Difficulty</p>
-              <div className="grid gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
                   <button
-                    className={`rounded-md border px-3 py-2 text-sm transition ${
+                    className={`rounded-md border px-3 py-2.5 text-sm transition ${
                       difficulty === option.value
                         ? "border-lime-400/70 bg-lime-400/20 text-lime-100"
                         : "border-white/15 bg-white/5 text-white/80 hover:border-white/30"

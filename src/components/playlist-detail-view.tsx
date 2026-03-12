@@ -60,8 +60,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
-  const setTracks = usePlayerStore((state) => state.setTracks);
-  const setTrack = usePlayerStore((state) => state.setTrack);
+  const storePlayTrack = usePlayerStore((state) => state.playTrack);
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const {
@@ -196,9 +195,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     } else if (currentTrack && tracks.some((t) => t.id === currentTrack.id)) {
       setPlaying(true);
     } else {
-      setTracks(tracks);
-      setTrack(tracks[0]);
-      setPlaying(true);
+      storePlayTrack(tracks[0], tracks);
     }
   };
 
@@ -319,9 +316,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                     draggable
                     key={`${playlistId}-${track.id}`}
                     onClick={() => {
-                      setTracks(tracks);
-                      setTrack(track);
-                      setPlaying(true);
+                      storePlayTrack(track, tracks);
                     }}
                     onDragEnd={() => setDraggingTrackId(null)}
                     onDragOver={(event) => event.preventDefault()}

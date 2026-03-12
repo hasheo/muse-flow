@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { AudioEngine } from "@/components/player/audio-engine";
+import { MobileNav } from "@/components/mobile-nav";
 import { PlayerBar } from "@/components/player-bar";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
@@ -29,10 +30,11 @@ export default async function AppShellLayout({
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <section className="mx-auto w-full max-w-5xl flex-1 overflow-y-auto px-4 py-8 pb-32 sm:px-8" id="main-content">{children}</section>
+        <section className="mx-auto w-full max-w-5xl flex-1 overflow-y-auto px-4 py-8 pb-40 sm:px-8 lg:pb-32" id="main-content">{children}</section>
       </div>
       <AudioEngine />
       <PlayerBar />
+      <MobileNav />
     </main>
   );
 }

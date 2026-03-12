@@ -68,7 +68,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   const searchParams = useSearchParams();
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
-  const setTrack = usePlayerStore((state) => state.setTrack);
+  const storePlayTrack = usePlayerStore((state) => state.playTrack);
   const setPlaying = usePlayerStore((state) => state.setPlaying);
   const setTracks = usePlayerStore((state) => state.setTracks);
 
@@ -104,8 +104,13 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   }, [playlists, selectedPlaylistId]);
 
   useEffect(() => {
-    const onFocusSearch = () => {
+    const onFocusSearch = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string | undefined;
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (detail) {
+        setQuery(detail);
+        setDebouncedQuery(detail);
+      }
       searchInputRef.current?.focus();
     };
 
@@ -116,6 +121,11 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   useEffect(() => {
     if (searchParams.get("focus") === "search") {
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const q = searchParams.get("q");
+      if (q) {
+        setQuery(q);
+        setDebouncedQuery(q);
+      }
       searchInputRef.current?.focus();
     }
   }, [searchParams]);
@@ -137,9 +147,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   });
 
   const playTrack = (track: Track, queue: Track[]) => {
-    setTracks(queue);
-    setTrack(track);
-    setPlaying(true);
+    storePlayTrack(track, queue);
   };
 
   const onSearch = useCallback(async (rawQuery: string) => {

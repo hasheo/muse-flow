@@ -11,9 +11,9 @@ export default async function AppPage() {
 
   return (
     <>
-      <header className="mb-8">
-        <p className="text-sm uppercase tracking-[0.2em] text-white/50">Welcome back</p>
-        <h1 className="text-4xl font-bold tracking-tight">{username}</h1>
+      <header className="mb-6 sm:mb-8">
+        <p className="text-xs uppercase tracking-[0.2em] text-white/50 sm:text-sm">Welcome back</p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-4xl">{username}</h1>
       </header>
 
       {tracks.length > 0 ? (

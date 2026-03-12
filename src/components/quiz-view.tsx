@@ -1,12 +1,13 @@
 ﻿"use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { Input } from "@/components/ui/input";
+import { ManageTracksDialog } from "@/components/manage-tracks-dialog";
 import type { Track } from "@/lib/catalog";
 import {
   coerceQuizDifficulty,
@@ -58,7 +59,7 @@ async function setQuizSettings(playlistId: string, difficulty: QuizDifficulty, a
   const response = await fetch(`/api/playlists/${playlistId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ difficulty, answerMode }),
+    body: JSON.stringify({ isQuiz: true, difficulty, answerMode }),
   });
   const payload = (await response.json()) as { message?: string };
   if (!response.ok) {
@@ -97,8 +98,8 @@ export function QuizView() {
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
-  const [newPlaylistName, setNewPlaylistName] = useState("");
-  const [newPlaylistCover, setNewPlaylistCover] = useState("");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isManageTracksOpen, setIsManageTracksOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
@@ -306,8 +307,7 @@ export function QuizView() {
       answerMode: QuizAnswerMode;
     }) => createQuizPlaylist(name, difficulty, answerMode, cover),
     onSuccess: async (playlist) => {
-      setNewPlaylistName("");
-      setNewPlaylistCover("");
+      setIsCreateDialogOpen(false);
       setSelectedPlaylistId(playlist.id);
       setErrorMessage(null);
       await queryClient.invalidateQueries({ queryKey: ["playlists"] });
@@ -767,10 +767,10 @@ export function QuizView() {
         ) : null}
 
         {phase === "setup" ? (
-          <div className="mt-3 space-y-3">
-            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+          <div className="mt-3 space-y-4 sm:space-y-3">
+            <div className="flex gap-2">
               <select
-                className="h-10 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
+                className="h-10 min-w-0 flex-1 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
                 onChange={(event) => {
                   setSelectedPlaylistId(event.target.value);
                   setDifficultyOverride(null);
@@ -790,38 +790,27 @@ export function QuizView() {
                 ))}
               </select>
 
-              <Input
-                onChange={(event) => setNewPlaylistName(event.target.value)}
-                placeholder="Create a new quiz playlist..."
-                value={newPlaylistName}
-              />
-
               <Button
-                disabled={createPlaylistMutation.isPending}
-                onClick={() => {
-                  const name = newPlaylistName.trim();
-                  if (!name) {
-                    setErrorMessage("Quiz playlist name cannot be empty.");
-                    return;
-                  }
-                  createPlaylistMutation.mutate({
-                    name,
-                    cover: newPlaylistCover.trim() || undefined,
-                    difficulty,
-                    answerMode,
-                  });
-                }}
+                onClick={() => setIsCreateDialogOpen(true)}
                 type="button"
                 variant="ghost"
               >
-                {createPlaylistMutation.isPending ? "Creating..." : "Create Quiz Playlist"}
+                + New
               </Button>
             </div>
 
-            <Input
-              onChange={(event) => setNewPlaylistCover(event.target.value)}
-              placeholder="Cover URL playlist quiz (optional)"
-              value={newPlaylistCover}
+            <CreatePlaylistDialog
+              open={isCreateDialogOpen}
+              isCreating={createPlaylistMutation.isPending}
+              onCancel={() => setIsCreateDialogOpen(false)}
+              onConfirm={(name, cover) => {
+                createPlaylistMutation.mutate({
+                  name,
+                  cover: cover || undefined,
+                  difficulty,
+                  answerMode,
+                });
+              }}
             />
 
             {selectedPlaylist?.isQuiz ? (
@@ -848,10 +837,10 @@ export function QuizView() {
 
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-[0.2em] text-white/50">Difficulty</p>
-              <div className="grid gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
                   <button
-                    className={`rounded-md border px-3 py-2 text-sm transition ${
+                    className={`rounded-md border px-3 py-2.5 text-sm transition ${
                       difficulty === option.value
                         ? "border-lime-400/70 bg-lime-400/20 text-lime-100"
                         : "border-white/15 bg-white/5 text-white/80 hover:border-white/30"
@@ -868,10 +857,10 @@ export function QuizView() {
 
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-[0.2em] text-white/50">Answer Mode</p>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-2">
                 {QUIZ_ANSWER_MODE_OPTIONS.map((option) => (
                   <button
-                    className={`rounded-md border px-3 py-2 text-sm transition ${
+                    className={`rounded-md border px-3 py-2.5 text-sm transition ${
                       answerMode === option.value
                         ? "border-lime-400/70 bg-lime-400/20 text-lime-100"
                         : "border-white/15 bg-white/5 text-white/80 hover:border-white/30"
@@ -886,7 +875,7 @@ export function QuizView() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button disabled={!activePlaylistId || saveQuizSettingsMutation.isPending} onClick={() => {
                 if (!activePlaylistId) {
                   setErrorMessage("Please select a playlist first.");
@@ -901,139 +890,64 @@ export function QuizView() {
               }} type="button" variant="ghost">
                 {saveQuizSettingsMutation.isPending ? "Saving..." : "Save Quiz Settings"}
               </Button>
+              <Button
+                disabled={!activePlaylistId}
+                onClick={() => setIsManageTracksOpen(true)}
+                type="button"
+                variant="ghost"
+              >
+                Manage Tracks ({activePlaylistData?.tracks?.length ?? 0})
+              </Button>
               <Button disabled={isPlaylistsLoading} onClick={() => void startQuiz()} type="button">
                 Start Quiz
               </Button>
             </div>
 
-            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
-              <p className="mb-2 text-xs uppercase tracking-[0.2em] text-white/50">
-                Add Tracks to Quiz Playlist
-              </p>
-              <form
-                className="flex flex-col gap-2 sm:flex-row"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void onSearchTracks(searchQuery);
-                }}
-              >
-                <Input
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search YouTube tracks..."
-                  value={searchQuery}
-                />
-                <Button disabled={isSearching} type="submit">
-                  {isSearching ? "Searching..." : "Search"}
-                </Button>
-              </form>
-              {searchError ? <p className="mt-2 text-sm text-red-300">{searchError}</p> : null}
-
-              {searchResults.length ? (
-                <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1" ref={searchResultsContainerRef}>
-                  {searchResults.map((track) => {
-                    const alreadyAdded = existingTrackIds.has(track.id);
-                    return (
-                      <div
-                        className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg border border-white/10 px-3 py-2"
-                        key={track.id}
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{track.title}</p>
-                          <p className="truncate text-xs text-white/65">{track.artist}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            className="h-8 px-3"
-                            onClick={() => {
-                              if (previewingTrackId === track.id) {
-                                clearPreviewTimeout();
-                                stopQuizAudio();
-                                setPreviewingTrackId(null);
-                                return;
-                              }
-                              setErrorMessage(null);
-                              void playPreviewSnippet(track);
-                            }}
-                            type="button"
-                            variant="ghost"
-                          >
-                            {previewingTrackId === track.id ? "Stop" : `Preview ${snippetDurationSeconds}s`}
-                          </Button>
-                          <Button
-                            className="h-8 px-3"
-                            disabled={!activePlaylistId || alreadyAdded || savingTrackId === track.id}
-                            onClick={() => {
-                              if (!activePlaylistId) {
-                                setErrorMessage("Please select a quiz playlist first.");
-                                return;
-                              }
-                              setSavingTrackId(track.id);
-                              setErrorMessage(null);
-                              saveTrackMutation.mutate({ playlistId: activePlaylistId, track });
-                            }}
-                            type="button"
-                            variant="ghost"
-                          >
-                            {alreadyAdded ? "Added" : savingTrackId === track.id ? "Adding..." : "Add"}
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div ref={searchSentinelRef} />
-                  {isLoadingMoreSearch ? (
-                    <p className="px-1 py-2 text-xs text-white/65">Loading more results...</p>
-                  ) : null}
-                  {!hasMoreSearchResults ? (
-                    <p className="px-1 py-2 text-xs text-white/45">No more results.</p>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            {activePlaylistId ? (
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="mb-2 text-xs uppercase tracking-[0.2em] text-white/50">
-                  Current Quiz Playlist Tracks ({activePlaylistData?.tracks?.length ?? 0})
-                </p>
-                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                  {(activePlaylistData?.tracks ?? []).map((track) => (
-                    <div className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2" key={track.id}>
-                      <Image
-                        alt={track.title}
-                        className="h-8 w-8 rounded object-cover"
-                        height={32}
-                        src={track.cover}
-                        width={32}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{track.title}</p>
-                        <p className="truncate text-xs text-white/65">{track.artist}</p>
-                      </div>
-                      <Button
-                        className="ml-auto h-7 px-2 text-xs"
-                        disabled={!activePlaylistId || removingTrackId === track.id}
-                        onClick={() => {
-                          if (!activePlaylistId) {
-                            return;
-                          }
-                          setRemovingTrackId(track.id);
-                          setErrorMessage(null);
-                          removeTrackMutation.mutate({ playlistId: activePlaylistId, trackId: track.id });
-                        }}
-                        type="button"
-                        variant="ghost"
-                      >
-                        {removingTrackId === track.id ? "Removing..." : "Remove"}
-                      </Button>
-                    </div>
-                  ))}
-                  {!activePlaylistData?.tracks?.length ? (
-                    <p className="text-xs text-white/65">No tracks in this playlist yet.</p>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
+            <ManageTracksDialog
+              open={isManageTracksOpen}
+              playlistName={selectedPlaylist?.name ?? ""}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              onSearch={(query) => void onSearchTracks(query)}
+              isSearching={isSearching}
+              searchError={searchError}
+              searchResults={searchResults}
+              searchResultsContainerRef={searchResultsContainerRef}
+              searchSentinelRef={searchSentinelRef}
+              isLoadingMoreSearch={isLoadingMoreSearch}
+              hasMoreSearchResults={hasMoreSearchResults}
+              existingTrackIds={existingTrackIds}
+              savingTrackId={savingTrackId}
+              removingTrackId={removingTrackId}
+              previewingTrackId={previewingTrackId}
+              snippetDurationSeconds={snippetDurationSeconds}
+              onPreview={(track) => {
+                setErrorMessage(null);
+                void playPreviewSnippet(track);
+              }}
+              onStopPreview={() => {
+                clearPreviewTimeout();
+                stopQuizAudio();
+                setPreviewingTrackId(null);
+              }}
+              onAddTrack={(track) => {
+                if (!activePlaylistId) {
+                  setErrorMessage("Please select a quiz playlist first.");
+                  return;
+                }
+                setSavingTrackId(track.id);
+                setErrorMessage(null);
+                saveTrackMutation.mutate({ playlistId: activePlaylistId, track });
+              }}
+              onRemoveTrack={(trackId) => {
+                if (!activePlaylistId) return;
+                setRemovingTrackId(trackId);
+                setErrorMessage(null);
+                removeTrackMutation.mutate({ playlistId: activePlaylistId, trackId });
+              }}
+              currentTracks={activePlaylistData?.tracks ?? []}
+              onClose={() => setIsManageTracksOpen(false)}
+            />
           </div>
         ) : null}
 
