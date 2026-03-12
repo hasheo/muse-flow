@@ -28,6 +28,23 @@ const updatePlaylistSchema = z
   })
   .strict();
 
+function cleanYouTubeMetadata(rawTitle: string, rawArtist: string, rawAlbum: string) {
+  const artist = rawArtist.replace(/\s*-\s*Topic$/, "");
+  const album = rawAlbum === "YouTube Music" ? "" : rawAlbum.replace(/\s*-\s*Topic$/, "");
+
+  // Try to parse "Artist - Title" format from video title
+  const separatorMatch = rawTitle.match(/^(.+?)\s*[-–—]\s+(.+)$/);
+  if (separatorMatch) {
+    return {
+      title: separatorMatch[2].trim(),
+      artist: separatorMatch[1].trim(),
+      album: album || artist,
+    };
+  }
+
+  return { title: rawTitle, artist, album };
+}
+
 function mapPlaylistTrackToTrack(track: {
   trackId: string;
   sourceType: string;
@@ -42,13 +59,15 @@ function mapPlaylistTrackToTrack(track: {
     return null;
   }
 
+  const cleaned = cleanYouTubeMetadata(track.title, track.artist, track.album);
+
   return {
     id: track.trackId,
     sourceType: "youtube",
     youtubeVideoId: track.youtubeVideoId,
-    title: track.title,
-    artist: track.artist,
-    album: track.album,
+    title: cleaned.title,
+    artist: cleaned.artist,
+    album: cleaned.album,
     duration: track.duration,
     cover: track.cover,
   };

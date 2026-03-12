@@ -18,7 +18,7 @@ const trackSchema = z
     sourceType: z.literal("youtube"),
     title: z.string().min(1),
     artist: z.string().min(1),
-    album: z.string().min(1),
+    album: z.string(),
     duration: z.number().int().nonnegative(),
     cover: z.string(),
     youtubeVideoId: z.string().min(1),

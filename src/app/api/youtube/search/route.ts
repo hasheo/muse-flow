@@ -180,13 +180,30 @@ export async function GET(request: NextRequest) {
         return [];
       }
 
-      const title = item.snippet?.title?.trim() || "Untitled";
-      const artist = item.snippet?.channelTitle?.trim() || "YouTube";
+      const rawTitle = item.snippet?.title?.trim() || "Untitled";
+      const rawChannel = item.snippet?.channelTitle?.trim() || "Unknown";
+      const channel = rawChannel.replace(/\s*-\s*Topic$/, "");
       const cover =
         item.snippet?.thumbnails?.high?.url ||
         item.snippet?.thumbnails?.medium?.url ||
         item.snippet?.thumbnails?.default?.url ||
         "";
+
+      // Try to parse "Artist - Title" format common in music videos
+      const separatorMatch = rawTitle.match(/^(.+?)\s*[-–—]\s+(.+)$/);
+      let title: string;
+      let artist: string;
+      let album: string;
+
+      if (separatorMatch) {
+        artist = separatorMatch[1].trim();
+        title = separatorMatch[2].trim();
+        album = channel;
+      } else {
+        title = rawTitle;
+        artist = channel;
+        album = "";
+      }
 
       return [
         {
@@ -195,7 +212,7 @@ export async function GET(request: NextRequest) {
           youtubeVideoId: videoId,
           title,
           artist,
-          album: "YouTube Music",
+          album,
           cover,
           duration: durationMap.get(videoId) ?? 0,
         },
