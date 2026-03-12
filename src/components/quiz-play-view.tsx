@@ -342,10 +342,10 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
           </p>
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.2em] text-white/50">Difficulty</p>
-            <div className="grid gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
                 <button
-                  className={`rounded-md border px-3 py-2 text-sm transition ${
+                  className={`rounded-md border px-3 py-2.5 text-sm transition ${
                     difficulty === option.value
                       ? "border-lime-400/70 bg-lime-400/20 text-lime-100"
                       : "border-white/15 bg-white/5 text-white/80 hover:border-white/30"

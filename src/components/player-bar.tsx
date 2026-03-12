@@ -43,7 +43,7 @@ export function PlayerBar() {
   }
 
   return (
-    <footer className="fixed inset-x-0 bottom-0 border-t border-white/10 bg-black/85 px-4 py-3 backdrop-blur-xl">
+    <footer className="fixed inset-x-0 bottom-[52px] z-30 border-t border-white/10 bg-black/85 px-4 py-3 backdrop-blur-xl lg:bottom-0">
       <div className="mx-auto flex max-w-7xl items-center gap-3 lg:gap-6">
         <div className="min-w-0 flex flex-1 items-center gap-3">
           <Image alt={currentTrack.title} className="h-12 w-12 rounded-md object-cover" height={48} src={currentTrack.cover} width={48} />

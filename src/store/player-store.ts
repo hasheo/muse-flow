@@ -16,6 +16,7 @@ type PlayerState = {
   analyserData: Uint8Array;
   setTracks: (tracks: Track[]) => void;
   setTrack: (track: Track) => void;
+  playTrack: (track: Track, queue: Track[]) => void;
   toggle: () => void;
   setPlaying: (playing: boolean) => void;
   setPlaybackState: (state: PlaybackState) => void;
@@ -50,6 +51,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       playbackError: null,
       playbackState: state.isPlaying ? "loading" : "paused",
     })),
+  playTrack: (track, queue) =>
+    set({
+      tracks: queue,
+      currentTrack: track,
+      isPlaying: true,
+      progress: 0,
+      playbackError: null,
+      playbackState: "loading",
+    }),
   toggle: () =>
     set((state) => {
       const nextPlaying = !state.isPlaying;

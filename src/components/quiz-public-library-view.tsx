@@ -144,7 +144,7 @@ export function QuizPublicLibraryView() {
     <div className="space-y-4">
       <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Explore Public Quiz</p>
-        <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid gap-2 grid-cols-2 lg:grid-cols-4">
           <Input
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search quiz name or owner..."
@@ -218,7 +218,7 @@ export function QuizPublicLibraryView() {
           >
             <Image
               alt={playlist.name}
-              className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+              className="h-32 w-full object-cover transition duration-300 group-hover:scale-105 sm:h-44"
               height={176}
               src={playlist.cover}
              
