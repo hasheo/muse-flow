@@ -31,15 +31,14 @@ export function CreatePlaylistDialog({
       return;
     }
 
-    setName("");
-    setCover("");
-    setError(null);
-
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     requestAnimationFrame(() => {
+      setName("");
+      setCover("");
+      setError(null);
       nameInputRef.current?.focus();
     });
 
