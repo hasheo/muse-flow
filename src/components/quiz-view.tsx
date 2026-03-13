@@ -952,110 +952,114 @@ export function QuizView() {
         ) : null}
 
         {phase !== "setup" && currentTrack ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-sm text-white/70">
-              Question {currentIndex + 1}/{quizTracks.length} • Score: {score}
-            </p>
+          <div className="mt-3 space-y-5">
+            {/* Header: Question counter + circular timer */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.15em] text-white/50">Question</p>
+                <p className="text-2xl font-bold">
+                  <span className="text-lime-400">{currentIndex + 1}</span>
+                  <span className="text-white/40">/{quizTracks.length}</span>
+                </p>
+              </div>
+              <p className="text-xs text-white/50">Score: {score}</p>
+              {(phase === "playing" || phase === "answering") ? (
+                <div className="relative flex h-16 w-16 items-center justify-center">
+                  <svg className="-rotate-90" height="64" width="64" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" className="text-white/10" />
+                    <circle
+                      cx="32" cy="32" r="28" fill="none" strokeWidth="4"
+                      className={timeLeft <= 5 ? "text-red-400" : "text-lime-400"}
+                      strokeDasharray={`${2 * Math.PI * 28}`}
+                      strokeDashoffset={`${2 * Math.PI * 28 * (1 - timeLeft / 15)}`}
+                      strokeLinecap="round"
+                      style={{ transition: "stroke-dashoffset 0.7s linear" }}
+                    />
+                  </svg>
+                  <span className={`absolute text-sm font-bold ${timeLeft <= 5 ? "text-red-400" : "text-white"}`}>
+                    {String(Math.floor(timeLeft / 60)).padStart(2, "0")}:{String(timeLeft % 60).padStart(2, "0")}
+                  </span>
+                  <p aria-live="polite" className="sr-only" role="status">{timerAnnouncement}</p>
+                </div>
+              ) : null}
+            </div>
 
+            {/* Question card */}
             {phase === "playing" || phase === "answering" ? (
-              <p className="min-h-10 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
-                {phase === "playing"
-                  ? `Playing ${snippetDurationSeconds}-second snippet... listen carefully.`
-                  : "Snippet finished. Choose your answer."}
-              </p>
+              <div className="rounded-2xl bg-gradient-to-br from-lime-400/20 via-teal-400/10 to-transparent p-5">
+                <p className="text-center text-base font-medium leading-relaxed sm:text-lg">
+                  {phase === "playing"
+                    ? `Listen to the ${snippetDurationSeconds}-second snippet...`
+                    : "What song is this?"}
+                </p>
+              </div>
             ) : null}
 
+            {/* Typed answer mode */}
             {(phase === "playing" || phase === "answering") && answerMode === "typed" ? (
               <form
-                className="space-y-2"
+                className="space-y-3"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (!currentTrack) {
-                    return;
-                  }
+                  if (!currentTrack) return;
                   submitAnswer(answerInput, currentTrack, currentIndex);
                 }}
               >
-                <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
-                {phase === "playing" ? (
-                  <p className="text-xs text-white/65">Snippet is playing. You can answer now.</p>
-                ) : null}
-                <p aria-live="polite" className="sr-only" role="status">
-                  {timerAnnouncement}
-                </p>
-                <div
-                  aria-label="Answer time remaining"
-                  aria-valuemax={15}
-                  aria-valuemin={0}
-                  aria-valuenow={timeLeft}
-                  className="h-2 w-full overflow-hidden rounded-full bg-white/10"
-                  role="progressbar"
-                >
-                  <div
-                    className="h-full bg-lime-400 transition-[width] duration-700"
-                    style={{ width: `${Math.max(0, Math.min(100, (timeLeft / 15) * 100))}%` }}
-                  />
-                </div>
                 <Input
                   onChange={(event) => setAnswerInput(event.target.value)}
                   placeholder="Guess the song title..."
                   value={answerInput}
                 />
-                <Button type="submit">Submit Answer</Button>
+                <button
+                  className="w-full rounded-full bg-lime-400 py-3.5 text-sm font-semibold text-black transition hover:bg-lime-300 active:scale-[0.98]"
+                  type="submit"
+                >
+                  Submit Answer
+                </button>
               </form>
             ) : null}
 
+            {/* Multiple choice mode */}
             {(phase === "playing" || phase === "answering") && answerMode === "multiple_choice" ? (
-              <div className="space-y-2">
-                <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
-                <p className="min-h-5 text-xs text-white/65">
-                  {phase === "playing"
-                    ? "Snippet is playing. You can answer now."
-                    : "Snippet finished. Answer now."}
-                </p>
-                <p aria-live="polite" className="sr-only" role="status">
-                  {timerAnnouncement}
-                </p>
-                <div
-                  aria-label="Answer time remaining"
-                  aria-valuemax={15}
-                  aria-valuemin={0}
-                  aria-valuenow={timeLeft}
-                  className="h-2 w-full overflow-hidden rounded-full bg-white/10"
-                  role="progressbar"
-                >
-                  <div
-                    className="h-full bg-lime-400 transition-[width] duration-700"
-                    style={{ width: `${Math.max(0, Math.min(100, (timeLeft / 15) * 100))}%` }}
-                  />
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {multipleChoiceOptions.map((option, index) => (
-                    <Button
-                      className="justify-start rounded-lg px-3 py-2 text-left"
+              <div className="space-y-2.5">
+                {multipleChoiceOptions.map((option, index) => {
+                  const label = String.fromCharCode(97 + index);
+                  return (
+                    <button
+                      className="flex w-full items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 text-left text-sm transition hover:border-lime-400/50 hover:bg-lime-400/10 active:scale-[0.98]"
                       key={`${option}-${index}`}
                       onClick={() => {
-                        if (!currentTrack) {
-                          return;
-                        }
+                        if (!currentTrack) return;
                         submitAnswer(option, currentTrack, currentIndex);
                       }}
                       type="button"
-                      variant="ghost"
                     >
-                      {index + 1}. {option}
-                    </Button>
-                  ))}
-                </div>
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-xs font-semibold text-white/60">
+                        {label}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{option}</span>
+                    </button>
+                  );
+                })}
               </div>
             ) : null}
 
+            {/* Revealed phase */}
             {phase === "revealed" ? (
-              <div className="space-y-2">
-                <p className={`text-sm ${lastResult ? "text-lime-300" : "text-amber-300"}`}>{feedbackMessage}</p>
-                <Button onClick={() => void nextQuestion()} type="button" variant="ghost">
-                  {currentIndex + 1 >= quizTracks.length ? "Finish Quiz" : "Next Question"}
-                </Button>
+              <div className="space-y-4">
+                <div className={`rounded-2xl p-5 text-center ${lastResult ? "bg-lime-400/15" : "bg-amber-400/15"}`}>
+                  <p className={`text-lg font-semibold ${lastResult ? "text-lime-300" : "text-amber-300"}`}>
+                    {lastResult ? "Correct!" : "Wrong!"}
+                  </p>
+                  <p className="mt-1 text-sm text-white/70">{feedbackMessage}</p>
+                </div>
+                <button
+                  className="w-full rounded-full bg-lime-400 py-3.5 text-sm font-semibold text-black transition hover:bg-lime-300 active:scale-[0.98]"
+                  onClick={() => void nextQuestion()}
+                  type="button"
+                >
+                  {currentIndex + 1 >= quizTracks.length ? "Finish Quiz" : "Next"}
+                </button>
               </div>
             ) : null}
           </div>
