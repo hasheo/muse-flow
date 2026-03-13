@@ -89,15 +89,17 @@ export function NowPlayingView({ open, onClose }: NowPlayingViewProps) {
         </div>
 
         {/* Cover art */}
-        <div className="flex flex-1 items-center justify-center px-8">
-          <Image
-            alt={currentTrack.title}
-            className="w-full max-w-xs rounded-lg object-cover shadow-2xl"
-            height={320}
-            src={currentTrack.cover}
-            width={320}
-            priority
-          />
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="aspect-square w-full max-w-sm overflow-hidden rounded-lg shadow-2xl">
+            <Image
+              alt={currentTrack.title}
+              className="h-full w-full object-cover"
+              height={400}
+              src={currentTrack.cover}
+              width={400}
+              priority
+            />
+          </div>
         </div>
 
         {/* Track info + controls */}
