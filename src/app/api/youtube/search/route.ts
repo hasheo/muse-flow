@@ -54,6 +54,28 @@ function parseIsoDuration(value: string | undefined) {
   return hours * 3600 + minutes * 60 + seconds;
 }
 
+/**
+ * Strip common YouTube video title noise to extract the actual song name.
+ * e.g. "Shining Your Song (Official Music Video)" → "Shining Your Song"
+ */
+function cleanSongTitle(raw: string): string {
+  return (
+    raw
+      // Remove bracketed/parenthesized suffixes: (Official Video), [MV], (Lyrics), etc.
+      .replace(/[\(\[【](?:official\s*(?:music\s*)?(?:video|mv|audio|lyric(?:s)?\s*(?:video)?)|music\s*video|lyric(?:s)?\s*(?:video)?|mv|m\/v|full\s*ver(?:sion)?\.?|short\s*ver(?:sion)?\.?|audio|hd|hq|4k|remaster(?:ed)?|live|pv|animated?\s*(?:mv|video)?|visualizer|clip\s*officiel|video\s*oficial|歌ってみた|踊ってみた)[\)\]】]/gi,
+        "",
+      )
+      // Remove unbracketed trailing tags after the title
+      .replace(/\s+(?:official\s*(?:music\s*)?(?:video|mv|audio)|music\s*video|lyric(?:s)?\s*video|mv|m\/v)\s*$/gi, "")
+      // Remove "feat./ft." features from title (keep artist clean)
+      .replace(/\s*(?:feat\.?|ft\.?)\s+.+$/i, "")
+      .trim()
+      // Clean up leftover punctuation from removed brackets
+      .replace(/\s*[-–—]\s*$/, "")
+      .trim()
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -196,11 +218,11 @@ export async function GET(request: NextRequest) {
       let album: string;
 
       if (separatorMatch) {
-        artist = separatorMatch[1].trim();
-        title = separatorMatch[2].trim();
+        artist = cleanSongTitle(separatorMatch[1].trim());
+        title = cleanSongTitle(separatorMatch[2].trim());
         album = channel;
       } else {
-        title = rawTitle;
+        title = cleanSongTitle(rawTitle);
         artist = channel;
         album = "";
       }
