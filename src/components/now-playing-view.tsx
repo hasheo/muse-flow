@@ -90,13 +90,13 @@ export function NowPlayingView({ open, onClose }: NowPlayingViewProps) {
 
         {/* Cover art */}
         <div className="flex flex-1 items-center justify-center px-6">
-          <div className="aspect-square w-full max-w-sm overflow-hidden rounded-lg shadow-2xl">
+          <div className="relative aspect-square w-full max-w-sm overflow-hidden rounded-lg shadow-2xl">
             <Image
               alt={currentTrack.title}
-              className="h-full w-full object-cover"
-              height={400}
+              className="object-cover"
+              fill
               src={currentTrack.cover}
-              width={400}
+              sizes="(max-width: 640px) 100vw, 384px"
               priority
             />
           </div>
@@ -162,14 +162,16 @@ export function NowPlayingView({ open, onClose }: NowPlayingViewProps) {
 
           {/* Centered cover */}
           <div className="flex flex-1 items-center justify-center px-12">
-            <Image
-              alt={currentTrack.title}
-              className="max-h-[70vh] w-full max-w-lg rounded-lg object-cover shadow-2xl"
-              height={600}
-              src={currentTrack.cover}
-              width={600}
-              priority
-            />
+            <div className="relative aspect-square w-full max-w-lg overflow-hidden rounded-lg shadow-2xl">
+              <Image
+                alt={currentTrack.title}
+                className="object-cover"
+                fill
+                src={currentTrack.cover}
+                sizes="512px"
+                priority
+              />
+            </div>
           </div>
         </div>
 
