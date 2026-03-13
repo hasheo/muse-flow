@@ -183,16 +183,25 @@ export function ManageTracksDialog({
                   const alreadyAdded = existingTrackIds.has(track.id);
                   return (
                     <div
-                      className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2.5 sm:flex-row sm:items-center"
+                      className="flex flex-col gap-2 rounded-lg border border-white/10 px-3 py-2.5"
                       key={track.id}
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {track.title}
-                        </p>
-                        <p className="truncate text-xs text-white/65">
-                          {track.artist}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <Image
+                          alt={track.title}
+                          className="h-14 w-14 shrink-0 rounded-md object-cover"
+                          height={56}
+                          src={track.cover}
+                          width={56}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">
+                            {track.title}
+                          </p>
+                          <p className="truncate text-sm text-white/65">
+                            {track.artist}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <Button
@@ -251,24 +260,24 @@ export function ManageTracksDialog({
             <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
               {currentTracks.map((track) => (
                 <div
-                  className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2"
+                  className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2.5"
                   key={track.id}
                 >
                   <Image
                     alt={track.title}
-                    className="h-8 w-8 rounded object-cover"
-                    height={32}
+                    className="h-12 w-12 shrink-0 rounded-md object-cover"
+                    height={48}
                     src={track.cover}
-                    width={32}
+                    width={48}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{track.title}</p>
-                    <p className="truncate text-xs text-white/65">
+                    <p className="truncate font-medium">{track.title}</p>
+                    <p className="truncate text-sm text-white/65">
                       {track.artist}
                     </p>
                   </div>
                   <Button
-                    className="ml-auto h-7 shrink-0 px-2 text-xs"
+                    className="ml-auto h-8 shrink-0 px-3"
                     disabled={removingTrackId === track.id}
                     onClick={() => onRemoveTrack(track.id)}
                     type="button"
