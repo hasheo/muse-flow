@@ -28,6 +28,18 @@ const updatePlaylistSchema = z
   })
   .strict();
 
+function cleanSongTitle(raw: string): string {
+  return (
+    raw
+      .replace(/[\(\[【](?:official\s*(?:music\s*)?(?:video|mv|audio|lyric(?:s)?\s*(?:video)?)|music\s*video|lyric(?:s)?\s*(?:video)?|mv|m\/v|full\s*ver(?:sion)?\.?|short\s*ver(?:sion)?\.?|audio|hd|hq|4k|remaster(?:ed)?|live|pv|animated?\s*(?:mv|video)?|visualizer|clip\s*officiel|video\s*oficial|歌ってみた|踊ってみた)[\)\]】]/gi, "")
+      .replace(/\s+(?:official\s*(?:music\s*)?(?:video|mv|audio)|music\s*video|lyric(?:s)?\s*video|mv|m\/v)\s*$/gi, "")
+      .replace(/\s*(?:feat\.?|ft\.?)\s+.+$/i, "")
+      .trim()
+      .replace(/\s*[-–—]\s*$/, "")
+      .trim()
+  );
+}
+
 function cleanYouTubeMetadata(rawTitle: string, rawArtist: string, rawAlbum: string) {
   const artist = rawArtist.replace(/\s*-\s*Topic$/, "");
   const album = rawAlbum === "YouTube Music" ? "" : rawAlbum.replace(/\s*-\s*Topic$/, "");
@@ -36,13 +48,13 @@ function cleanYouTubeMetadata(rawTitle: string, rawArtist: string, rawAlbum: str
   const separatorMatch = rawTitle.match(/^(.+?)\s*[-–—]\s+(.+)$/);
   if (separatorMatch) {
     return {
-      title: separatorMatch[2].trim(),
-      artist: separatorMatch[1].trim(),
+      title: cleanSongTitle(separatorMatch[2].trim()),
+      artist: cleanSongTitle(separatorMatch[1].trim()),
       album: album || artist,
     };
   }
 
-  return { title: rawTitle, artist, album };
+  return { title: cleanSongTitle(rawTitle), artist, album };
 }
 
 function mapPlaylistTrackToTrack(track: {
