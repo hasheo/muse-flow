@@ -189,10 +189,10 @@ export function ManageTracksDialog({
                       <div className="flex items-center gap-3">
                         <Image
                           alt={track.title}
-                          className="h-12 w-12 shrink-0 rounded-md object-cover"
-                          height={48}
+                          className="h-14 w-14 shrink-0 rounded-md object-cover"
+                          height={56}
                           src={track.cover}
-                          width={48}
+                          width={56}
                         />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium">
@@ -265,10 +265,10 @@ export function ManageTracksDialog({
                 >
                   <Image
                     alt={track.title}
-                    className="h-10 w-10 shrink-0 rounded-md object-cover"
-                    height={40}
+                    className="h-12 w-12 shrink-0 rounded-md object-cover"
+                    height={48}
                     src={track.cover}
-                    width={40}
+                    width={48}
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{track.title}</p>

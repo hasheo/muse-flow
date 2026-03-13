@@ -306,10 +306,10 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           <div className="flex items-center gap-3">
             <Image
               alt={track.title}
-              className="h-12 w-12 shrink-0 rounded-md object-cover sm:h-10 sm:w-10"
+              className="h-14 w-14 shrink-0 rounded-md object-cover sm:h-10 sm:w-10"
               src={track.cover}
-              width={48}
-              height={48}
+              width={56}
+              height={56}
             />
             <div className="min-w-0">
               <p className="truncate font-medium text-white">{track.title}</p>
