@@ -297,7 +297,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
 
     return (
       <div
-        className={`grid w-full grid-cols-[2.2fr_1.2fr_0.7fr_auto] items-center gap-2 px-4 py-3 transition ${
+        className={`flex flex-col gap-2 px-4 py-3 transition sm:grid sm:grid-cols-[2.2fr_1.2fr_0.7fr_auto] sm:items-center sm:gap-2 ${
           accent === "youtube" ? "hover:bg-cyan-500/10" : "hover:bg-white/10"
         } ${active ? (accent === "youtube" ? "bg-cyan-500/10" : "bg-white/10") : ""}`}
         key={track.id}
@@ -306,11 +306,10 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           <div className="flex items-center gap-3">
             <Image
               alt={track.title}
-              className="h-10 w-10 shrink-0 rounded-md object-cover"
+              className="h-12 w-12 shrink-0 rounded-md object-cover sm:h-10 sm:w-10"
               src={track.cover}
-             
-              width={40}
-              height={40}
+              width={48}
+              height={48}
             />
             <div className="min-w-0">
               <p className="truncate font-medium text-white">{track.title}</p>
@@ -319,11 +318,11 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           </div>
         </button>
 
-        <p className="truncate text-sm text-white/65">{track.album}</p>
-        <p className="text-right text-sm text-white/65">{formatDuration(track.duration)}</p>
+        <p className="hidden truncate text-sm text-white/65 sm:block">{track.album}</p>
+        <p className="hidden text-right text-sm text-white/65 sm:block">{formatDuration(track.duration)}</p>
 
         <Button
-          className="h-8 px-3"
+          className="h-8 w-full px-3 sm:w-auto"
           disabled={!selectedPlaylistId || savingTrackId === track.id}
           onClick={() => void onSaveTrack(track)}
           type="button"
