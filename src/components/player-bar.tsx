@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { AlertCircle, Loader2, Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
+import { NowPlayingView } from "@/components/now-playing-view";
 import { Slider } from "@/components/ui/slider";
 import { formatDuration } from "@/lib/format";
 import { usePlayerStore } from "@/store/player-store";
@@ -25,6 +27,7 @@ function AnalyserVisualizer() {
 }
 
 export function PlayerBar() {
+  const [isNowPlayingOpen, setIsNowPlayingOpen] = useState(false);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playbackState = usePlayerStore((s) => s.playbackState);
@@ -43,10 +46,14 @@ export function PlayerBar() {
   }
 
   return (
+    <>
+    <NowPlayingView open={isNowPlayingOpen} onClose={() => setIsNowPlayingOpen(false)} />
     <footer className="fixed inset-x-0 bottom-[52px] z-30 border-t border-white/10 bg-black/85 px-4 py-3 backdrop-blur-xl lg:bottom-0">
       <div className="mx-auto flex max-w-7xl items-center gap-3 lg:gap-6">
         <div className="min-w-0 flex flex-1 items-center gap-3">
-          <Image alt={currentTrack.title} className="h-12 w-12 rounded-md object-cover" height={48} src={currentTrack.cover} width={48} />
+          <button className="shrink-0" onClick={() => setIsNowPlayingOpen(true)} type="button">
+            <Image alt={currentTrack.title} className="h-12 w-12 rounded-md object-cover transition hover:opacity-80" height={48} src={currentTrack.cover} width={48} />
+          </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{currentTrack.title}</p>
             <p className="truncate text-xs text-white/60">{currentTrack.artist}</p>
@@ -98,5 +105,6 @@ export function PlayerBar() {
         </div>
       </div>
     </footer>
+    </>
   );
 }
