@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Image from "next/image";
+import NextImage from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Image from "next/image";
@@ -458,7 +458,7 @@ export function QuizCompanionView() {
             </p>
 
             <div className="relative">
-              <Image
+              <NextImage
                 alt={currentTrack.title}
                 className="aspect-square w-56 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-64"
                 height={256}
