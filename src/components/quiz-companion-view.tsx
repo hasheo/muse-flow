@@ -1,9 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import NextImage from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
@@ -101,20 +100,37 @@ export function QuizCompanionView() {
   const [currentSnippetStart, setCurrentSnippetStart] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [difficultyOverride, setDifficultyOverride] = useState<QuizDifficulty | null>(null);
+  const [isTrackLoading, setIsTrackLoading] = useState(false);
+
+  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const preloadedTrackIdRef = useRef<string | null>(null);
+  const snippetDurationRef = useRef(0);
 
   const {
     playerRef: mainPlayerRef,
     readyRef: mainReadyRef,
     containerRef: mainContainerRef,
-  } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
+  } = useYouTubePlayer({
+    playerVars: QUIZ_PLAYER_VARS,
+    onStateChange: (event) => {
+      // YT.PlayerState.PLAYING = 1
+      if (event.data === 1) {
+        setIsTrackLoading(false);
+        if (snippetTimeoutRef.current) {
+          clearTimeout(snippetTimeoutRef.current);
+          snippetTimeoutRef.current = null;
+        }
+        snippetTimeoutRef.current = setTimeout(() => {
+          mainPlayerRef.current?.pauseVideo();
+        }, snippetDurationRef.current * 1000);
+      }
+    },
+  });
   const {
     playerRef: preloadPlayerRef,
     readyRef: preloadReadyRef,
     containerRef: preloadContainerRef,
   } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
-
-  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const preloadedTrackIdRef = useRef<string | null>(null);
 
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
@@ -128,6 +144,10 @@ export function QuizCompanionView() {
   const currentTrack = quizTracks[currentIndex] ?? null;
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
 
+  useEffect(() => {
+    snippetDurationRef.current = snippetDurationSeconds;
+  }, [snippetDurationSeconds]);
+
   const clearSnippetTimer = useCallback(() => {
     if (snippetTimeoutRef.current) {
       clearTimeout(snippetTimeoutRef.current);
@@ -135,6 +155,7 @@ export function QuizCompanionView() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const stopCompanionAudio = useCallback(() => {
     mainPlayerRef.current?.pauseVideo();
   }, [mainPlayerRef]);
@@ -187,6 +208,7 @@ export function QuizCompanionView() {
     setPlaying(false);
   }, [setPlaying]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const playSnippet = useCallback(async (track: Track, startAt: number) => {
     if (!mainPlayerRef.current || !mainReadyRef.current) {
       throw new Error("YouTube player is not ready yet.");
@@ -219,20 +241,18 @@ export function QuizCompanionView() {
       clearSnippetTimer();
       stopCompanionAudio();
       setErrorMessage(null);
+      setIsTrackLoading(true);
       try {
         await playSnippet(track, snippetStart);
       } catch (error) {
+        setIsTrackLoading(false);
         setErrorMessage(
           error instanceof Error ? error.message : "Failed to play snippet.",
         );
-        return;
       }
-
-      snippetTimeoutRef.current = setTimeout(() => {
-        stopCompanionAudio();
-      }, snippetDurationSeconds * 1000);
+      // Snippet timer is started by onStateChange when PLAYING fires
     },
-    [clearSnippetTimer, playSnippet, snippetDurationSeconds, stopCompanionAudio],
+    [clearSnippetTimer, playSnippet, stopCompanionAudio],
   );
 
   const runQuestion = useCallback(
@@ -435,14 +455,21 @@ export function QuizCompanionView() {
               Question {currentIndex + 1} of {quizTracks.length}
             </p>
 
-            <Image
-              alt={currentTrack.title}
-              className="aspect-square w-56 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-64"
-              height={256}
-              src={currentTrack.cover}
-              unoptimized
-              width={256}
-            />
+            <div className="relative">
+              <NextImage
+                alt={currentTrack.title}
+                className="aspect-square w-56 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-64"
+                height={256}
+                src={currentTrack.cover}
+                unoptimized
+                width={256}
+              />
+              {isTrackLoading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/50">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-lime-400" />
+                </div>
+              )}
+            </div>
 
             <div className="w-full text-center">
               <p className="truncate text-lg font-bold text-white">{currentTrack.title}</p>
