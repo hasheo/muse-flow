@@ -54,7 +54,8 @@ function mapPlaylistTrackToTrack(track: {
   duration: number;
   cover: string;
   youtubeVideoId: string | null;
-}): Track | null {
+  addedBy?: { id: string; name: string | null; image: string | null } | null;
+}): (Track & { addedBy?: { id: string; name: string | null; image: string | null } | null }) | null {
   if (track.sourceType !== "youtube" || !track.youtubeVideoId) {
     return null;
   }
@@ -70,6 +71,7 @@ function mapPlaylistTrackToTrack(track: {
     album: cleaned.album,
     duration: track.duration,
     cover: track.cover,
+    addedBy: track.addedBy,
   };
 }
 
@@ -108,6 +110,8 @@ export async function GET(
             duration: true,
             cover: true,
             youtubeVideoId: true,
+            addedById: true,
+            addedBy: { select: { id: true, name: true, image: true } },
           },
         },
       },
@@ -117,8 +121,21 @@ export async function GET(
       return apiError({ status: 404, code: "NOT_FOUND", message: "Playlist not found" });
     }
 
-    const isOwner = playlist.userId === session.user.id;
-    if (!isOwner && !(playlist.isQuiz && playlist.isPublic)) {
+    let role: "owner" | "collaborator" | null = null;
+    if (playlist.userId === session.user.id) {
+      role = "owner";
+    } else {
+      const collaborator = await db.playlistCollaborator.findUnique({
+        where: {
+          playlistId_userId: { playlistId: id, userId: session.user.id },
+        },
+      });
+      if (collaborator) {
+        role = "collaborator";
+      }
+    }
+
+    if (!role && !(playlist.isQuiz && playlist.isPublic)) {
       return apiError({ status: 404, code: "NOT_FOUND", message: "Playlist not found" });
     }
 
@@ -143,9 +160,10 @@ export async function GET(
           duration: track.duration,
           cover: track.cover,
           youtubeVideoId: track.youtubeVideoId,
+          addedBy: track.addedBy,
         }),
       )
-      .filter((track): track is Track => Boolean(track));
+      .filter((track): track is Track & { addedBy?: { id: string; name: string | null; image: string | null } | null } => Boolean(track));
 
     return NextResponse.json({
       playlist: {
@@ -158,6 +176,7 @@ export async function GET(
         answerMode: playlist.answerMode,
         ownerName: getUserDisplayName(owner?.name, owner?.email),
         trackCount: tracks.length,
+        role: role || "viewer",
       },
       tracks,
       quizSessionToken: playlist.isQuiz
