@@ -4,8 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import NextImage from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import Image from "next/image";
-
 import { Button } from "@/components/ui/button";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
