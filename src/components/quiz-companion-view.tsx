@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import Image from "next/image";
+
 import { Button } from "@/components/ui/button";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
@@ -428,15 +430,26 @@ export function QuizCompanionView() {
         ) : null}
 
         {phase === "playing" && currentTrack ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-sm text-white/70">
-              Question {currentIndex + 1}/{quizTracks.length}
+          <div className="mt-4 flex flex-col items-center space-y-5">
+            <p className="text-sm text-white/50">
+              Question {currentIndex + 1} of {quizTracks.length}
             </p>
-            <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
-              Listen to the {snippetDurationSeconds}-second snippet, guess the song offline, then
-              move on to the next question.
-            </p>
-            <div className="flex gap-2">
+
+            <Image
+              alt={currentTrack.title}
+              className="aspect-square w-56 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-64"
+              height={256}
+              src={currentTrack.cover}
+              unoptimized
+              width={256}
+            />
+
+            <div className="w-full text-center">
+              <p className="truncate text-lg font-bold text-white">{currentTrack.title}</p>
+              <p className="truncate text-sm text-white/50">{currentTrack.artist}</p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2">
               <Button
                 disabled={currentIndex <= 0}
                 onClick={() => void previousQuestion()}
