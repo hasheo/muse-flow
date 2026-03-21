@@ -6,12 +6,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { ManageCollaboratorsDialog } from "@/components/manage-collaborators-dialog";
+import { ManageTracksDialog } from "@/components/manage-tracks-dialog";
 import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
 import { formatDuration } from "@/lib/format";
 import type { Track } from "@/lib/catalog";
@@ -65,7 +66,21 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isCollabDialogOpen, setIsCollabDialogOpen] = useState(false);
+  const [isManageTracksOpen, setIsManageTracksOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Track[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isLoadingMoreSearch, setIsLoadingMoreSearch] = useState(false);
+  const [hasMoreSearchResults, setHasMoreSearchResults] = useState(false);
+  const [searchNextPageToken, setSearchNextPageToken] = useState<string | null>(null);
+  const [activeSearchTerm, setActiveSearchTerm] = useState("");
+  const [savingTrackId, setSavingTrackId] = useState<string | null>(null);
+  const [removingTrackId, setRemovingTrackId] = useState<string | null>(null);
   const { data: session } = useSession();
+
+  const searchResultsContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
@@ -180,6 +195,123 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       setActionError(e instanceof Error ? e.message : "Failed to delete playlist");
     },
   });
+
+  const saveTrackMutation = useMutation({
+    mutationFn: async ({ track }: { track: Track }) => {
+      const response = await fetch(`/api/playlists/${playlistId}/tracks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string };
+        throw new Error(payload.message || "Failed to add track");
+      }
+    },
+    onSuccess: async () => {
+      setSavingTrackId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({ queryKey: ["playlists"] }),
+      ]);
+    },
+    onError: () => {
+      setSavingTrackId(null);
+    },
+  });
+
+  const removeTrackFromDialogMutation = useMutation({
+    mutationFn: async ({ trackId }: { trackId: string }) => {
+      const response = await fetch(`/api/playlists/${playlistId}/tracks`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackId }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string };
+        throw new Error(payload.message || "Failed to remove track");
+      }
+    },
+    onSuccess: async () => {
+      setRemovingTrackId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({ queryKey: ["playlists"] }),
+      ]);
+    },
+    onError: () => {
+      setRemovingTrackId(null);
+    },
+  });
+
+  const existingTrackIds = useMemo(() => new Set(tracks.map((t) => t.id)), [tracks]);
+
+  const onSearchTracks = useCallback(async (rawQuery: string) => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      setSearchError(null);
+      setSearchNextPageToken(null);
+      setHasMoreSearchResults(false);
+      setActiveSearchTerm("");
+      return;
+    }
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`, { cache: "no-store" });
+      const payload = (await response.json()) as { tracks?: Track[]; nextPageToken?: string; hasMore?: boolean; message?: string };
+      if (!response.ok) throw new Error(payload.message || "Search failed");
+      setActiveSearchTerm(trimmed);
+      setSearchResults(payload.tracks ?? []);
+      setSearchNextPageToken(payload.nextPageToken ?? null);
+      setHasMoreSearchResults(Boolean(payload.hasMore));
+    } catch (err) {
+      setSearchResults([]);
+      setSearchError(err instanceof Error ? err.message : "Search failed");
+      setSearchNextPageToken(null);
+      setHasMoreSearchResults(false);
+      setActiveSearchTerm("");
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const loadMoreSearchResults = useCallback(async () => {
+    if (!searchNextPageToken || !hasMoreSearchResults || isLoadingMoreSearch || isSearching || !activeSearchTerm) return;
+    setIsLoadingMoreSearch(true);
+    try {
+      const response = await fetch(
+        `/api/youtube/search?q=${encodeURIComponent(activeSearchTerm)}&pageToken=${encodeURIComponent(searchNextPageToken)}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as { tracks?: Track[]; nextPageToken?: string; hasMore?: boolean; message?: string };
+      if (!response.ok) throw new Error(payload.message || "Failed to load more");
+      setSearchResults((prev) => {
+        const merged = [...prev, ...(payload.tracks ?? [])];
+        const unique = new Map<string, Track>();
+        for (const t of merged) unique.set(t.id, t);
+        return [...unique.values()];
+      });
+      setSearchNextPageToken(payload.nextPageToken ?? null);
+      setHasMoreSearchResults(Boolean(payload.hasMore));
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Failed to load more");
+    } finally {
+      setIsLoadingMoreSearch(false);
+    }
+  }, [activeSearchTerm, hasMoreSearchResults, isLoadingMoreSearch, isSearching, searchNextPageToken]);
+
+  useEffect(() => {
+    const sentinel = searchSentinelRef.current;
+    if (!sentinel || !searchResults.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) void loadMoreSearchResults(); },
+      { root: null, rootMargin: "120px", threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMoreSearchResults, searchResults.length]);
 
   if (isLoading) {
     return <p className="text-sm text-white/70">Loading playlist...</p>;
@@ -319,6 +451,16 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                 >
                   <Users className="h-4 w-4" />
                 </button>
+              )}
+              {(isOwner || isCollaborator) && (
+                <Button
+                  className="h-10 rounded-full"
+                  onClick={() => setIsManageTracksOpen(true)}
+                  type="button"
+                  variant="ghost"
+                >
+                  Manage Tracks
+                </Button>
               )}
             </div>
           ) : null}
@@ -466,6 +608,43 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         open={isCollabDialogOpen}
         playlistId={playlistId}
         playlistName={playlist.name}
+      />
+
+      <ManageTracksDialog
+        currentTracks={tracks}
+        existingTrackIds={existingTrackIds}
+        hasMoreSearchResults={hasMoreSearchResults}
+        isLoadingMoreSearch={isLoadingMoreSearch}
+        isSearching={isSearching}
+        onAddTrack={(track) => {
+          setSavingTrackId(track.id);
+          saveTrackMutation.mutate({ track });
+        }}
+        onClose={() => {
+          setIsManageTracksOpen(false);
+          setSearchQuery("");
+          setSearchResults([]);
+          setSearchError(null);
+        }}
+        onPreview={() => {}}
+        onRemoveTrack={(trackId) => {
+          setRemovingTrackId(trackId);
+          removeTrackFromDialogMutation.mutate({ trackId });
+        }}
+        onSearch={(q) => void onSearchTracks(q)}
+        onSearchQueryChange={setSearchQuery}
+        onStopPreview={() => {}}
+        open={isManageTracksOpen}
+        playlistName={playlist.name}
+        previewingTrackId={null}
+        removingTrackId={removingTrackId}
+        savingTrackId={savingTrackId}
+        searchError={searchError}
+        searchQuery={searchQuery}
+        searchResults={searchResults}
+        searchResultsContainerRef={searchResultsContainerRef}
+        searchSentinelRef={searchSentinelRef}
+        snippetDurationSeconds={10}
       />
     </div>
   );
