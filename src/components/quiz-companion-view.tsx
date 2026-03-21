@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -99,20 +100,37 @@ export function QuizCompanionView() {
   const [currentSnippetStart, setCurrentSnippetStart] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [difficultyOverride, setDifficultyOverride] = useState<QuizDifficulty | null>(null);
+  const [isTrackLoading, setIsTrackLoading] = useState(false);
+
+  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const preloadedTrackIdRef = useRef<string | null>(null);
+  const snippetDurationRef = useRef(0);
 
   const {
     playerRef: mainPlayerRef,
     readyRef: mainReadyRef,
     containerRef: mainContainerRef,
-  } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
+  } = useYouTubePlayer({
+    playerVars: QUIZ_PLAYER_VARS,
+    onStateChange: (event) => {
+      // YT.PlayerState.PLAYING = 1
+      if (event.data === 1) {
+        setIsTrackLoading(false);
+        if (snippetTimeoutRef.current) {
+          clearTimeout(snippetTimeoutRef.current);
+          snippetTimeoutRef.current = null;
+        }
+        snippetTimeoutRef.current = setTimeout(() => {
+          mainPlayerRef.current?.pauseVideo();
+        }, snippetDurationRef.current * 1000);
+      }
+    },
+  });
   const {
     playerRef: preloadPlayerRef,
     readyRef: preloadReadyRef,
     containerRef: preloadContainerRef,
   } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
-
-  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const preloadedTrackIdRef = useRef<string | null>(null);
 
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
@@ -125,6 +143,7 @@ export function QuizCompanionView() {
   const difficulty = difficultyOverride ?? playlistDifficulty;
   const currentTrack = quizTracks[currentIndex] ?? null;
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
+  snippetDurationRef.current = snippetDurationSeconds;
 
   const clearSnippetTimer = useCallback(() => {
     if (snippetTimeoutRef.current) {
@@ -217,20 +236,18 @@ export function QuizCompanionView() {
       clearSnippetTimer();
       stopCompanionAudio();
       setErrorMessage(null);
+      setIsTrackLoading(true);
       try {
         await playSnippet(track, snippetStart);
       } catch (error) {
+        setIsTrackLoading(false);
         setErrorMessage(
           error instanceof Error ? error.message : "Failed to play snippet.",
         );
-        return;
       }
-
-      snippetTimeoutRef.current = setTimeout(() => {
-        stopCompanionAudio();
-      }, snippetDurationSeconds * 1000);
+      // Snippet timer is started by onStateChange when PLAYING fires
     },
-    [clearSnippetTimer, playSnippet, snippetDurationSeconds, stopCompanionAudio],
+    [clearSnippetTimer, playSnippet, stopCompanionAudio],
   );
 
   const runQuestion = useCallback(
@@ -428,15 +445,33 @@ export function QuizCompanionView() {
         ) : null}
 
         {phase === "playing" && currentTrack ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-sm text-white/70">
-              Question {currentIndex + 1}/{quizTracks.length}
+          <div className="mt-4 flex flex-col items-center space-y-5">
+            <p className="text-sm text-white/50">
+              Question {currentIndex + 1} of {quizTracks.length}
             </p>
-            <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
-              Listen to the {snippetDurationSeconds}-second snippet, guess the song offline, then
-              move on to the next question.
-            </p>
-            <div className="flex gap-2">
+
+            <div className="relative">
+              <Image
+                alt={currentTrack.title}
+                className="aspect-square w-56 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-64"
+                height={256}
+                src={currentTrack.cover}
+                unoptimized
+                width={256}
+              />
+              {isTrackLoading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/50">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-lime-400" />
+                </div>
+              )}
+            </div>
+
+            <div className="w-full text-center">
+              <p className="truncate text-lg font-bold text-white">{currentTrack.title}</p>
+              <p className="truncate text-sm text-white/50">{currentTrack.artist}</p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2">
               <Button
                 disabled={currentIndex <= 0}
                 onClick={() => void previousQuestion()}
