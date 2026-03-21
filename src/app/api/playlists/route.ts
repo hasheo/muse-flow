@@ -32,29 +32,68 @@ export async function GET() {
       });
     }
 
-    const playlists = await db.playlist.findMany({
-      where: { userId: session.user.id },
-      orderBy: { updatedAt: "desc" },
-      include: {
-        _count: {
-          select: { tracks: true },
+    const [ownedPlaylists, collaborations] = await Promise.all([
+      db.playlist.findMany({
+        where: { userId: session.user.id },
+        orderBy: { updatedAt: "desc" },
+        include: {
+          _count: {
+            select: { tracks: true },
+          },
         },
-      },
-    });
+      }),
+      db.playlistCollaborator.findMany({
+        where: { userId: session.user.id },
+        include: {
+          playlist: {
+            include: {
+              _count: {
+                select: { tracks: true },
+              },
+              user: {
+                select: { name: true, email: true },
+              },
+            },
+          },
+        },
+        orderBy: { playlist: { updatedAt: "desc" } },
+      }),
+    ]);
+
+    const owned = ownedPlaylists.map((playlist) => ({
+      id: playlist.id,
+      name: playlist.name,
+      cover: playlist.cover,
+      isQuiz: playlist.isQuiz,
+      isPublic: playlist.isPublic,
+      difficulty: playlist.difficulty,
+      answerMode: playlist.answerMode,
+      createdAt: playlist.createdAt,
+      updatedAt: playlist.updatedAt,
+      trackCount: playlist._count.tracks,
+      role: "owner" as const,
+    }));
+
+    const collaborative = collaborations.map((collab) => ({
+      id: collab.playlist.id,
+      name: collab.playlist.name,
+      cover: collab.playlist.cover,
+      isQuiz: collab.playlist.isQuiz,
+      isPublic: collab.playlist.isPublic,
+      difficulty: collab.playlist.difficulty,
+      answerMode: collab.playlist.answerMode,
+      createdAt: collab.playlist.createdAt,
+      updatedAt: collab.playlist.updatedAt,
+      trackCount: collab.playlist._count.tracks,
+      role: "collaborator" as const,
+      ownerName:
+        collab.playlist.user.name?.trim() ||
+        collab.playlist.user.email?.split("@")[0] ||
+        "Unknown",
+    }));
 
     return NextResponse.json({
-      playlists: playlists.map((playlist) => ({
-        id: playlist.id,
-        name: playlist.name,
-        cover: playlist.cover,
-        isQuiz: playlist.isQuiz,
-        isPublic: playlist.isPublic,
-        difficulty: playlist.difficulty,
-        answerMode: playlist.answerMode,
-        createdAt: playlist.createdAt,
-        updatedAt: playlist.updatedAt,
-        trackCount: playlist._count.tracks,
-      })),
+      playlists: [...owned, ...collaborative],
     });
   } catch (error) {
     return apiError({
