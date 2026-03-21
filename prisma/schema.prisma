@@ -20,6 +20,9 @@ model User {
   sessions      Session[]
   playlists     Playlist[]
   quizAttempts  QuizAttempt[]
+  collaborations PlaylistCollaborator[]
+  usedInvites    PlaylistInvite[]       @relation("UsedInvites")
+  addedTracks    PlaylistTrack[]        @relation("AddedTracks")
 }
 
 model Playlist {
@@ -36,6 +39,8 @@ model Playlist {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   tracks    PlaylistTrack[]
   quizAttempts QuizAttempt[]
+  collaborators PlaylistCollaborator[]
+  invites       PlaylistInvite[]
 }
 
 model QuizAttempt {
@@ -68,10 +73,45 @@ model PlaylistTrack {
   youtubeVideoId String?
   mimeType       String?
   sourcePath     String?  @db.Text
+  addedById      String?
   createdAt      DateTime @default(now())
   playlist       Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  addedBy        User?    @relation("AddedTracks", fields: [addedById], references: [id], onDelete: SetNull)
 
   @@unique([playlistId, trackId])
+}
+
+enum InviteType {
+  email
+  link
+}
+
+model PlaylistCollaborator {
+  id         String   @id @default(cuid())
+  playlistId String
+  userId     String
+  joinedAt   DateTime @default(now())
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, userId])
+  @@index([userId])
+}
+
+model PlaylistInvite {
+  id         String      @id @default(cuid())
+  playlistId String
+  type       InviteType
+  email      String?
+  token      String      @unique @default(cuid())
+  used       Boolean     @default(false)
+  usedById   String?
+  createdAt  DateTime    @default(now())
+  expiresAt  DateTime?
+  playlist   Playlist    @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  usedBy     User?       @relation("UsedInvites", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([email, type, used])
 }
 
 model Account {

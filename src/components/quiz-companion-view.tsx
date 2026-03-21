@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import Image from "next/image";
+
 import { Button } from "@/components/ui/button";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
@@ -134,7 +136,7 @@ export function QuizCompanionView() {
 
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
-    queryFn: () => fetchPlaylists<QuizPlaylistSummary>(),
+    queryFn: () => fetchPlaylists() as Promise<QuizPlaylistSummary[]>,
   });
 
   const activePlaylistId = selectedPlaylistId || playlists[0]?.id || "";

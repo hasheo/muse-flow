@@ -7,6 +7,7 @@ import { enforcePlaylistWriteRateLimit } from "@/lib/api-security";
 import { apiError, zodErrorDetails } from "@/lib/api-response";
 import type { Track } from "@/lib/catalog";
 import { db } from "@/lib/db";
+import { getPlaylistWithRole } from "@/lib/playlist-auth";
 
 const playlistParamsSchema = z.object({
   id: z.string().cuid(),
@@ -73,11 +74,9 @@ export async function POST(
       return rateLimited;
     }
 
-    const playlist = await db.playlist.findFirst({
-      where: { id: playlistId, userId: session.user.id },
-    });
+    const result = await getPlaylistWithRole(playlistId, session.user.id);
 
-    if (!playlist) {
+    if (!result || !result.role) {
       return apiError({ status: 404, code: "NOT_FOUND", message: "Playlist not found" });
     }
 
@@ -140,6 +139,7 @@ export async function POST(
         youtubeVideoId: track.youtubeVideoId,
         mimeType: null,
         sourcePath: null,
+        addedById: session.user.id,
       },
     });
 
@@ -188,11 +188,9 @@ export async function DELETE(
       return rateLimited;
     }
 
-    const playlist = await db.playlist.findFirst({
-      where: { id: playlistId, userId: session.user.id },
-    });
+    const result = await getPlaylistWithRole(playlistId, session.user.id);
 
-    if (!playlist) {
+    if (!result || !result.role) {
       return apiError({ status: 404, code: "NOT_FOUND", message: "Playlist not found" });
     }
 
@@ -216,6 +214,25 @@ export async function DELETE(
     }
 
     const { trackId } = parsed.data;
+
+    if (result.role === "collaborator") {
+      const existingTrack = await db.playlistTrack.findUnique({
+        where: { playlistId_trackId: { playlistId, trackId } },
+        select: { addedById: true },
+      });
+
+      if (!existingTrack) {
+        return apiError({ status: 404, code: "NOT_FOUND", message: "Track not found" });
+      }
+
+      if (existingTrack.addedById !== session.user.id) {
+        return apiError({
+          status: 403,
+          code: "FORBIDDEN",
+          message: "You can only remove tracks you added",
+        });
+      }
+    }
 
     await db.playlistTrack.deleteMany({
       where: {
