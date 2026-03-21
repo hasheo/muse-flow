@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
-import { Mail, Link as LinkIcon, Users, Copy, Check } from "lucide-react";
+import { Mail, Link as LinkIcon, Copy, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,12 +55,8 @@ async function fetchInvites(playlistId: string): Promise<Invite[]> {
   return payload.invites ?? [];
 }
 
-export function ManageCollaboratorsDialog({
-  open,
-  playlistId,
-  playlistName,
-  onClose,
-}: ManageCollaboratorsDialogProps) {
+export function ManageCollaboratorsDialog(props: ManageCollaboratorsDialogProps) {
+  const { open, playlistId, onClose } = props;
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -73,6 +69,13 @@ export function ManageCollaboratorsDialog({
     text: string;
   } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleClose = useCallback(() => {
+    setEmail("");
+    setMessage(null);
+    setLinkCopied(false);
+    onClose();
+  }, [onClose]);
 
   const { data: collaborators = [] } = useQuery({
     queryKey: ["collaborators", playlistId],
@@ -135,15 +138,6 @@ export function ManageCollaboratorsDialog({
     },
   });
 
-  // Reset state when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setEmail("");
-      setMessage(null);
-      setLinkCopied(false);
-    }
-  }, [open]);
-
   useEffect(() => {
     if (!open) return;
 
@@ -163,7 +157,7 @@ export function ManageCollaboratorsDialog({
 
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        handleClose();
         return;
       }
 
@@ -193,7 +187,7 @@ export function ManageCollaboratorsDialog({
       document.body.style.overflow = originalOverflow;
       previousFocusRef.current?.focus();
     };
-  }, [onClose, open]);
+  }, [handleClose, open]);
 
   if (!open) return null;
 
@@ -201,7 +195,7 @@ export function ManageCollaboratorsDialog({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) handleClose();
       }}
     >
       <div
@@ -218,7 +212,7 @@ export function ManageCollaboratorsDialog({
           </p>
           <button
             className="rounded-lg p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
-            onClick={onClose}
+            onClick={handleClose}
             type="button"
           >
             <svg
@@ -390,7 +384,7 @@ export function ManageCollaboratorsDialog({
         {/* Footer */}
         <div className="border-t border-white/10 px-5 py-3">
           <div className="flex justify-end">
-            <Button onClick={onClose} type="button">
+            <Button onClick={handleClose} type="button">
               Done
             </Button>
           </div>
