@@ -1,30 +1,37 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Pause, Pencil, Play, Trash2, X } from "lucide-react";
+import { ArrowLeft, Pause, Pencil, Play, Trash2, Users, X } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { ManageCollaboratorsDialog } from "@/components/manage-collaborators-dialog";
 import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
 import { formatDuration } from "@/lib/format";
 import type { Track } from "@/lib/catalog";
 import { usePlayerStore } from "@/store/player-store";
+
+type TrackWithAttribution = Track & {
+  addedBy?: { id: string; name: string | null; image: string | null } | null;
+};
 
 type PlaylistDetail = {
   id: string;
   name: string;
   cover: string;
   trackCount: number;
+  role?: "owner" | "collaborator" | "viewer";
 };
 
 type PlaylistDetailResponse = {
   playlist?: PlaylistDetail;
-  tracks?: Track[];
+  tracks?: TrackWithAttribution[];
   message?: string;
 };
 
@@ -57,6 +64,8 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   const [draggingTrackId, setDraggingTrackId] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCollabDialogOpen, setIsCollabDialogOpen] = useState(false);
+  const { data: session } = useSession();
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
@@ -185,6 +194,9 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   }
 
   const playlist = playlistDetail.playlist;
+  const role = playlist.role || "owner";
+  const isOwner = role === "owner";
+  const isCollaborator = role === "collaborator";
 
   const isPlaylistPlaying = isPlaying && currentTrack != null && tracks.some((t) => t.id === currentTrack.id);
 
@@ -280,21 +292,34 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                   <Play className="h-6 w-6 translate-x-0.5" fill="currentColor" />
                 )}
               </button>
-              <button
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-white/40 hover:text-white"
-                onClick={() => setIsEditing(true)}
-                type="button"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-red-400/60 hover:text-red-400"
-                disabled={deletePlaylistMutation.isPending}
-                onClick={() => setIsDeleteConfirmOpen(true)}
-                type="button"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {isOwner && (
+                <button
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-white/40 hover:text-white"
+                  onClick={() => setIsEditing(true)}
+                  type="button"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {isOwner && (
+                <button
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-red-400/60 hover:text-red-400"
+                  disabled={deletePlaylistMutation.isPending}
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+              {isOwner && (
+                <button
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-lime-300/40 hover:text-lime-300"
+                  onClick={() => setIsCollabDialogOpen(true)}
+                  type="button"
+                >
+                  <Users className="h-4 w-4" />
+                </button>
+              )}
             </div>
           ) : null}
         </div>
@@ -313,15 +338,16 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                     className={`group flex cursor-pointer items-center gap-4 rounded-lg px-3 py-2.5 transition ${
                       active ? "bg-white/10" : "hover:bg-white/[0.06]"
                     }`}
-                    draggable
+                    draggable={isOwner}
                     key={`${playlistId}-${track.id}`}
                     onClick={() => {
                       storePlayTrack(track, tracks);
                     }}
-                    onDragEnd={() => setDraggingTrackId(null)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDragStart={() => setDraggingTrackId(track.id)}
+                    onDragEnd={() => { if (!isOwner) return; setDraggingTrackId(null); }}
+                    onDragOver={(event) => { if (!isOwner) return; event.preventDefault(); }}
+                    onDragStart={() => { if (!isOwner) return; setDraggingTrackId(track.id); }}
                     onDrop={() => {
+                      if (!isOwner) return;
                       if (!draggingTrackId || draggingTrackId === track.id) return;
 
                       const sourceIndex = tracks.findIndex((item) => item.id === draggingTrackId);
@@ -367,20 +393,43 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                       </p>
                     </div>
 
+                    {/* Track attribution */}
+                    {track.addedBy && (
+                      <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+                        {track.addedBy.image ? (
+                          <Image
+                            alt={track.addedBy.name || ""}
+                            className="h-5 w-5 rounded-full object-cover"
+                            height={20}
+                            src={track.addedBy.image}
+                            unoptimized
+                            width={20}
+                          />
+                        ) : (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[10px] font-medium text-white/50">
+                            {(track.addedBy.name || "?")[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-xs text-white/30">{track.addedBy.name || "Unknown"}</span>
+                      </div>
+                    )}
+
                     {/* Delete button */}
-                    <button
-                      className="shrink-0 text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
-                      disabled={deletingTrackId === track.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingTrackId(track.id);
-                        setActionError(null);
-                        deleteTrackMutation.mutate({ trackId: track.id });
-                      }}
-                      type="button"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {(isOwner || (isCollaborator && track.addedBy?.id === session?.user?.id)) && (
+                      <button
+                        className="shrink-0 text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
+                        disabled={deletingTrackId === track.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingTrackId(track.id);
+                          setActionError(null);
+                          deleteTrackMutation.mutate({ trackId: track.id });
+                        }}
+                        type="button"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
 
                     {/* Duration */}
                     <span className="shrink-0 text-sm text-white/50">
@@ -410,6 +459,13 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         }}
         open={isDeleteConfirmOpen}
         title="Delete this playlist?"
+      />
+
+      <ManageCollaboratorsDialog
+        onClose={() => setIsCollabDialogOpen(false)}
+        open={isCollabDialogOpen}
+        playlistId={playlistId}
+        playlistName={playlist.name}
       />
     </div>
   );
