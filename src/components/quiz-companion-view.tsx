@@ -116,7 +116,7 @@ export function QuizCompanionView() {
 
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
-    queryFn: () => fetchPlaylists<QuizPlaylistSummary>(),
+    queryFn: () => fetchPlaylists() as Promise<QuizPlaylistSummary[]>,
   });
 
   const activePlaylistId = selectedPlaylistId || playlists[0]?.id || "";

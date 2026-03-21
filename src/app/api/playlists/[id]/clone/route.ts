@@ -97,6 +97,7 @@ export async function POST(
             youtubeVideoId: track.youtubeVideoId,
             mimeType: null,
             sourcePath: null,
+            addedById: session.user.id,
           })),
         },
       },

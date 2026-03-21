@@ -1,30 +1,38 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Pause, Pencil, Play, Trash2, X } from "lucide-react";
+import { ArrowLeft, Pause, Pencil, Play, Trash2, Users, X } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { ManageCollaboratorsDialog } from "@/components/manage-collaborators-dialog";
+import { ManageTracksDialog } from "@/components/manage-tracks-dialog";
 import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
 import { formatDuration } from "@/lib/format";
 import type { Track } from "@/lib/catalog";
 import { usePlayerStore } from "@/store/player-store";
+
+type TrackWithAttribution = Track & {
+  addedBy?: { id: string; name: string | null; image: string | null } | null;
+};
 
 type PlaylistDetail = {
   id: string;
   name: string;
   cover: string;
   trackCount: number;
+  role?: "owner" | "collaborator" | "viewer";
 };
 
 type PlaylistDetailResponse = {
   playlist?: PlaylistDetail;
-  tracks?: Track[];
+  tracks?: TrackWithAttribution[];
   message?: string;
 };
 
@@ -57,6 +65,22 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   const [draggingTrackId, setDraggingTrackId] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCollabDialogOpen, setIsCollabDialogOpen] = useState(false);
+  const [isManageTracksOpen, setIsManageTracksOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Track[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isLoadingMoreSearch, setIsLoadingMoreSearch] = useState(false);
+  const [hasMoreSearchResults, setHasMoreSearchResults] = useState(false);
+  const [searchNextPageToken, setSearchNextPageToken] = useState<string | null>(null);
+  const [activeSearchTerm, setActiveSearchTerm] = useState("");
+  const [savingTrackId, setSavingTrackId] = useState<string | null>(null);
+  const [removingTrackId, setRemovingTrackId] = useState<string | null>(null);
+  const { data: session } = useSession();
+
+  const searchResultsContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
@@ -172,6 +196,123 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     },
   });
 
+  const saveTrackMutation = useMutation({
+    mutationFn: async ({ track }: { track: Track }) => {
+      const response = await fetch(`/api/playlists/${playlistId}/tracks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string };
+        throw new Error(payload.message || "Failed to add track");
+      }
+    },
+    onSuccess: async () => {
+      setSavingTrackId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({ queryKey: ["playlists"] }),
+      ]);
+    },
+    onError: () => {
+      setSavingTrackId(null);
+    },
+  });
+
+  const removeTrackFromDialogMutation = useMutation({
+    mutationFn: async ({ trackId }: { trackId: string }) => {
+      const response = await fetch(`/api/playlists/${playlistId}/tracks`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackId }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { message?: string };
+        throw new Error(payload.message || "Failed to remove track");
+      }
+    },
+    onSuccess: async () => {
+      setRemovingTrackId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({ queryKey: ["playlists"] }),
+      ]);
+    },
+    onError: () => {
+      setRemovingTrackId(null);
+    },
+  });
+
+  const existingTrackIds = useMemo(() => new Set(tracks.map((t) => t.id)), [tracks]);
+
+  const onSearchTracks = useCallback(async (rawQuery: string) => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      setSearchError(null);
+      setSearchNextPageToken(null);
+      setHasMoreSearchResults(false);
+      setActiveSearchTerm("");
+      return;
+    }
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`, { cache: "no-store" });
+      const payload = (await response.json()) as { tracks?: Track[]; nextPageToken?: string; hasMore?: boolean; message?: string };
+      if (!response.ok) throw new Error(payload.message || "Search failed");
+      setActiveSearchTerm(trimmed);
+      setSearchResults(payload.tracks ?? []);
+      setSearchNextPageToken(payload.nextPageToken ?? null);
+      setHasMoreSearchResults(Boolean(payload.hasMore));
+    } catch (err) {
+      setSearchResults([]);
+      setSearchError(err instanceof Error ? err.message : "Search failed");
+      setSearchNextPageToken(null);
+      setHasMoreSearchResults(false);
+      setActiveSearchTerm("");
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const loadMoreSearchResults = useCallback(async () => {
+    if (!searchNextPageToken || !hasMoreSearchResults || isLoadingMoreSearch || isSearching || !activeSearchTerm) return;
+    setIsLoadingMoreSearch(true);
+    try {
+      const response = await fetch(
+        `/api/youtube/search?q=${encodeURIComponent(activeSearchTerm)}&pageToken=${encodeURIComponent(searchNextPageToken)}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as { tracks?: Track[]; nextPageToken?: string; hasMore?: boolean; message?: string };
+      if (!response.ok) throw new Error(payload.message || "Failed to load more");
+      setSearchResults((prev) => {
+        const merged = [...prev, ...(payload.tracks ?? [])];
+        const unique = new Map<string, Track>();
+        for (const t of merged) unique.set(t.id, t);
+        return [...unique.values()];
+      });
+      setSearchNextPageToken(payload.nextPageToken ?? null);
+      setHasMoreSearchResults(Boolean(payload.hasMore));
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Failed to load more");
+    } finally {
+      setIsLoadingMoreSearch(false);
+    }
+  }, [activeSearchTerm, hasMoreSearchResults, isLoadingMoreSearch, isSearching, searchNextPageToken]);
+
+  useEffect(() => {
+    const sentinel = searchSentinelRef.current;
+    if (!sentinel || !searchResults.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) void loadMoreSearchResults(); },
+      { root: null, rootMargin: "120px", threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMoreSearchResults, searchResults.length]);
+
   if (isLoading) {
     return <p className="text-sm text-white/70">Loading playlist...</p>;
   }
@@ -185,6 +326,9 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   }
 
   const playlist = playlistDetail.playlist;
+  const role = playlist.role || "owner";
+  const isOwner = role === "owner";
+  const isCollaborator = role === "collaborator";
 
   const isPlaylistPlaying = isPlaying && currentTrack != null && tracks.some((t) => t.id === currentTrack.id);
 
@@ -280,21 +424,44 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                   <Play className="h-6 w-6 translate-x-0.5" fill="currentColor" />
                 )}
               </button>
-              <button
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-white/40 hover:text-white"
-                onClick={() => setIsEditing(true)}
-                type="button"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-red-400/60 hover:text-red-400"
-                disabled={deletePlaylistMutation.isPending}
-                onClick={() => setIsDeleteConfirmOpen(true)}
-                type="button"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {isOwner && (
+                <button
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-white/40 hover:text-white"
+                  onClick={() => setIsEditing(true)}
+                  type="button"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {isOwner && (
+                <button
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-red-400/60 hover:text-red-400"
+                  disabled={deletePlaylistMutation.isPending}
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+              {isOwner && (
+                <button
+                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-lime-300/40 hover:text-lime-300"
+                  onClick={() => setIsCollabDialogOpen(true)}
+                  type="button"
+                >
+                  <Users className="h-4 w-4" />
+                </button>
+              )}
+              {(isOwner || isCollaborator) && (
+                <Button
+                  className="h-10 rounded-full"
+                  onClick={() => setIsManageTracksOpen(true)}
+                  type="button"
+                  variant="ghost"
+                >
+                  Manage Tracks
+                </Button>
+              )}
             </div>
           ) : null}
         </div>
@@ -313,15 +480,16 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                     className={`group flex cursor-pointer items-center gap-4 rounded-lg px-3 py-2.5 transition ${
                       active ? "bg-white/10" : "hover:bg-white/[0.06]"
                     }`}
-                    draggable
+                    draggable={isOwner}
                     key={`${playlistId}-${track.id}`}
                     onClick={() => {
                       storePlayTrack(track, tracks);
                     }}
-                    onDragEnd={() => setDraggingTrackId(null)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDragStart={() => setDraggingTrackId(track.id)}
+                    onDragEnd={() => { if (!isOwner) return; setDraggingTrackId(null); }}
+                    onDragOver={(event) => { if (!isOwner) return; event.preventDefault(); }}
+                    onDragStart={() => { if (!isOwner) return; setDraggingTrackId(track.id); }}
                     onDrop={() => {
+                      if (!isOwner) return;
                       if (!draggingTrackId || draggingTrackId === track.id) return;
 
                       const sourceIndex = tracks.findIndex((item) => item.id === draggingTrackId);
@@ -367,20 +535,43 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                       </p>
                     </div>
 
+                    {/* Track attribution */}
+                    {track.addedBy && (
+                      <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+                        {track.addedBy.image ? (
+                          <Image
+                            alt={track.addedBy.name || ""}
+                            className="h-5 w-5 rounded-full object-cover"
+                            height={20}
+                            src={track.addedBy.image}
+                            unoptimized
+                            width={20}
+                          />
+                        ) : (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-[10px] font-medium text-white/50">
+                            {(track.addedBy.name || "?")[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-xs text-white/30">{track.addedBy.name || "Unknown"}</span>
+                      </div>
+                    )}
+
                     {/* Delete button */}
-                    <button
-                      className="shrink-0 text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
-                      disabled={deletingTrackId === track.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingTrackId(track.id);
-                        setActionError(null);
-                        deleteTrackMutation.mutate({ trackId: track.id });
-                      }}
-                      type="button"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {(isOwner || (isCollaborator && track.addedBy?.id === session?.user?.id)) && (
+                      <button
+                        className="shrink-0 text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
+                        disabled={deletingTrackId === track.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingTrackId(track.id);
+                          setActionError(null);
+                          deleteTrackMutation.mutate({ trackId: track.id });
+                        }}
+                        type="button"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
 
                     {/* Duration */}
                     <span className="shrink-0 text-sm text-white/50">
@@ -410,6 +601,50 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         }}
         open={isDeleteConfirmOpen}
         title="Delete this playlist?"
+      />
+
+      <ManageCollaboratorsDialog
+        onClose={() => setIsCollabDialogOpen(false)}
+        open={isCollabDialogOpen}
+        playlistId={playlistId}
+        playlistName={playlist.name}
+      />
+
+      <ManageTracksDialog
+        currentTracks={tracks}
+        existingTrackIds={existingTrackIds}
+        hasMoreSearchResults={hasMoreSearchResults}
+        isLoadingMoreSearch={isLoadingMoreSearch}
+        isSearching={isSearching}
+        onAddTrack={(track) => {
+          setSavingTrackId(track.id);
+          saveTrackMutation.mutate({ track });
+        }}
+        onClose={() => {
+          setIsManageTracksOpen(false);
+          setSearchQuery("");
+          setSearchResults([]);
+          setSearchError(null);
+        }}
+        onPreview={() => {}}
+        onRemoveTrack={(trackId) => {
+          setRemovingTrackId(trackId);
+          removeTrackFromDialogMutation.mutate({ trackId });
+        }}
+        onSearch={(q) => void onSearchTracks(q)}
+        onSearchQueryChange={setSearchQuery}
+        onStopPreview={() => {}}
+        open={isManageTracksOpen}
+        playlistName={playlist.name}
+        previewingTrackId={null}
+        removingTrackId={removingTrackId}
+        savingTrackId={savingTrackId}
+        searchError={searchError}
+        searchQuery={searchQuery}
+        searchResults={searchResults}
+        searchResultsContainerRef={searchResultsContainerRef}
+        searchSentinelRef={searchSentinelRef}
+        snippetDurationSeconds={10}
       />
     </div>
   );
