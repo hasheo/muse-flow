@@ -143,7 +143,10 @@ export function QuizCompanionView() {
   const difficulty = difficultyOverride ?? playlistDifficulty;
   const currentTrack = quizTracks[currentIndex] ?? null;
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
-  snippetDurationRef.current = snippetDurationSeconds;
+
+  useEffect(() => {
+    snippetDurationRef.current = snippetDurationSeconds;
+  }, [snippetDurationSeconds]);
 
   const clearSnippetTimer = useCallback(() => {
     if (snippetTimeoutRef.current) {
@@ -152,6 +155,7 @@ export function QuizCompanionView() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const stopCompanionAudio = useCallback(() => {
     mainPlayerRef.current?.pauseVideo();
   }, [mainPlayerRef]);
@@ -204,6 +208,7 @@ export function QuizCompanionView() {
     setPlaying(false);
   }, [setPlaying]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const playSnippet = useCallback(async (track: Track, startAt: number) => {
     if (!mainPlayerRef.current || !mainReadyRef.current) {
       throw new Error("YouTube player is not ready yet.");
