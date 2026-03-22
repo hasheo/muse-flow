@@ -69,11 +69,13 @@ export function ManageCollaboratorsDialog(props: ManageCollaboratorsDialogProps)
     text: string;
   } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
   const handleClose = useCallback(() => {
     setEmail("");
     setMessage(null);
     setLinkCopied(false);
+    setGeneratedLink(null);
     onClose();
   }, [onClose]);
 
@@ -127,11 +129,16 @@ export function ManageCollaboratorsDialog(props: ManageCollaboratorsDialogProps)
     },
     onSuccess: async (data) => {
       const fullUrl = window.location.origin + data.inviteUrl;
-      await navigator.clipboard.writeText(fullUrl);
-      setLinkCopied(true);
-      setMessage({ type: "success", text: "Invite link copied to clipboard!" });
+      setGeneratedLink(fullUrl);
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+        setLinkCopied(true);
+        setMessage({ type: "success", text: "Invite link copied to clipboard!" });
+        setTimeout(() => setLinkCopied(false), 3000);
+      } catch {
+        setMessage({ type: "success", text: "Invite link generated! Copy it below." });
+      }
       queryClient.invalidateQueries({ queryKey: ["invites", playlistId] });
-      setTimeout(() => setLinkCopied(false), 3000);
     },
     onError: (err: Error) => {
       setMessage({ type: "error", text: err.message });
@@ -299,6 +306,32 @@ export function ManageCollaboratorsDialog(props: ManageCollaboratorsDialogProps)
                 </>
               )}
             </Button>
+            {generatedLink && !linkCopied ? (
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  className="flex-1 text-xs"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  readOnly
+                  value={generatedLink}
+                />
+                <Button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(generatedLink);
+                      setLinkCopied(true);
+                      setMessage({ type: "success", text: "Invite link copied to clipboard!" });
+                      setTimeout(() => setLinkCopied(false), 3000);
+                    } catch {
+                      // Input select fallback is already available
+                    }
+                  }}
+                  type="button"
+                  variant="ghost"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : null}
           </div>
 
           {/* Collaborators */}
