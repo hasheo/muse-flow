@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma migrate deploy && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -18,7 +19,9 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
     "db:push": "prisma db push",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -39,6 +42,7 @@
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.2",
     "tailwind-merge": "^3.5.0",
+    "ytmusic-api": "^5.3.1",
     "zod": "^4.3.6",
     "zustand": "^5.0.11"
   },

@@ -3,8 +3,8 @@ export const QUIZ_ANSWER_MODE_VALUES = ["typed", "multiple_choice"] as const;
 export type QuizAnswerMode = (typeof QUIZ_ANSWER_MODE_VALUES)[number];
 
 export const QUIZ_ANSWER_MODE_OPTIONS = [
-  { value: "typed", label: "Ketik Jawaban" },
-  { value: "multiple_choice", label: "Pilihan Ganda (4 opsi)" },
+  { value: "typed", label: "Type Answer" },
+  { value: "multiple_choice", label: "Multiple Choice (4 options)" },
 ] as const;
 
 export const DEFAULT_QUIZ_ANSWER_MODE: QuizAnswerMode = "typed";
@@ -24,5 +24,5 @@ export function coerceQuizAnswerMode(value: string | null | undefined): QuizAnsw
 export function getQuizAnswerModeLabel(mode: QuizAnswerMode) {
   const safeMode = coerceQuizAnswerMode(mode);
   const selected = QUIZ_ANSWER_MODE_OPTIONS.find((option) => option.value === safeMode);
-  return selected?.label ?? "Ketik Jawaban";
+  return selected?.label ?? "Type Answer";
 }

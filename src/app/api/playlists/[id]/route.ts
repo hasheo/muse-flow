@@ -28,6 +28,35 @@ const updatePlaylistSchema = z
   })
   .strict();
 
+function cleanSongTitle(raw: string): string {
+  return (
+    raw
+      .replace(/[\(\[【](?:official\s*(?:music\s*)?(?:video|mv|audio|lyric(?:s)?\s*(?:video)?)|music\s*video|lyric(?:s)?\s*(?:video)?|mv|m\/v|full\s*ver(?:sion)?\.?|short\s*ver(?:sion)?\.?|audio|hd|hq|4k|remaster(?:ed)?|live|pv|animated?\s*(?:mv|video)?|visualizer|clip\s*officiel|video\s*oficial|歌ってみた|踊ってみた)[\)\]】]/gi, "")
+      .replace(/\s+(?:official\s*(?:music\s*)?(?:video|mv|audio)|music\s*video|lyric(?:s)?\s*video|mv|m\/v)\s*$/gi, "")
+      .replace(/\s*(?:feat\.?|ft\.?)\s+.+$/i, "")
+      .trim()
+      .replace(/\s*[-–—]\s*$/, "")
+      .trim()
+  );
+}
+
+function cleanYouTubeMetadata(rawTitle: string, rawArtist: string, rawAlbum: string) {
+  const artist = rawArtist.replace(/\s*-\s*Topic$/, "");
+  const album = rawAlbum === "YouTube Music" ? "" : rawAlbum.replace(/\s*-\s*Topic$/, "");
+
+  // Try to parse "Artist - Title" format from video title
+  const separatorMatch = rawTitle.match(/^(.+?)\s*[-–—]\s+(.+)$/);
+  if (separatorMatch) {
+    return {
+      title: cleanSongTitle(separatorMatch[2].trim()),
+      artist: cleanSongTitle(separatorMatch[1].trim()),
+      album: album || artist,
+    };
+  }
+
+  return { title: cleanSongTitle(rawTitle), artist, album };
+}
+
 function mapPlaylistTrackToTrack(track: {
   trackId: string;
   sourceType: string;
@@ -37,20 +66,24 @@ function mapPlaylistTrackToTrack(track: {
   duration: number;
   cover: string;
   youtubeVideoId: string | null;
-}): Track | null {
+  addedBy?: { id: string; name: string | null; image: string | null } | null;
+}): (Track & { addedBy?: { id: string; name: string | null; image: string | null } | null }) | null {
   if (track.sourceType !== "youtube" || !track.youtubeVideoId) {
     return null;
   }
+
+  const cleaned = cleanYouTubeMetadata(track.title, track.artist, track.album);
 
   return {
     id: track.trackId,
     sourceType: "youtube",
     youtubeVideoId: track.youtubeVideoId,
-    title: track.title,
-    artist: track.artist,
-    album: track.album,
+    title: cleaned.title,
+    artist: cleaned.artist,
+    album: cleaned.album,
     duration: track.duration,
     cover: track.cover,
+    addedBy: track.addedBy,
   };
 }
 
@@ -89,6 +122,8 @@ export async function GET(
             duration: true,
             cover: true,
             youtubeVideoId: true,
+            addedById: true,
+            addedBy: { select: { id: true, name: true, image: true } },
           },
         },
       },
@@ -98,8 +133,21 @@ export async function GET(
       return apiError({ status: 404, code: "NOT_FOUND", message: "Playlist not found" });
     }
 
-    const isOwner = playlist.userId === session.user.id;
-    if (!isOwner && !(playlist.isQuiz && playlist.isPublic)) {
+    let role: "owner" | "collaborator" | null = null;
+    if (playlist.userId === session.user.id) {
+      role = "owner";
+    } else {
+      const collaborator = await db.playlistCollaborator.findUnique({
+        where: {
+          playlistId_userId: { playlistId: id, userId: session.user.id },
+        },
+      });
+      if (collaborator) {
+        role = "collaborator";
+      }
+    }
+
+    if (!role && !(playlist.isQuiz && playlist.isPublic)) {
       return apiError({ status: 404, code: "NOT_FOUND", message: "Playlist not found" });
     }
 
@@ -124,9 +172,10 @@ export async function GET(
           duration: track.duration,
           cover: track.cover,
           youtubeVideoId: track.youtubeVideoId,
+          addedBy: track.addedBy,
         }),
       )
-      .filter((track): track is Track => Boolean(track));
+      .filter((track): track is Track & { addedBy?: { id: string; name: string | null; image: string | null } | null } => Boolean(track));
 
     return NextResponse.json({
       playlist: {
@@ -139,6 +188,7 @@ export async function GET(
         answerMode: playlist.answerMode,
         ownerName: getUserDisplayName(owner?.name, owner?.email),
         trackCount: tracks.length,
+        role: role || "viewer",
       },
       tracks,
       quizSessionToken: playlist.isQuiz

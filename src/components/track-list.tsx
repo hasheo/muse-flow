@@ -9,14 +9,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Track } from "@/lib/catalog";
+import { formatDuration } from "@/lib/format";
+import { fetchPlaylists, type PlaylistSummary } from "@/lib/playlist";
 import { usePlayerStore } from "@/store/player-store";
-
-type PlaylistSummary = {
-  id: string;
-  name: string;
-  cover: string;
-  trackCount: number;
-};
 
 type ApiPayload = {
   message?: string;
@@ -26,27 +21,6 @@ type ApiPayload = {
   nextPageToken?: string | null;
   hasMore?: boolean;
 };
-
-function formatDuration(duration: number) {
-  const minutes = Math.floor(duration / 60)
-    .toString()
-    .padStart(1, "0");
-  const seconds = Math.floor(duration % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
-async function fetchPlaylists() {
-  const response = await fetch("/api/playlists", { cache: "no-store" });
-  const payload = await readApiPayload(response);
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to fetch playlists");
-  }
-
-  return payload.playlists ?? [];
-}
 
 async function createPlaylist(name: string, cover?: string) {
   const response = await fetch("/api/playlists", {
@@ -94,7 +68,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   const searchParams = useSearchParams();
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
-  const setTrack = usePlayerStore((state) => state.setTrack);
+  const storePlayTrack = usePlayerStore((state) => state.playTrack);
   const setPlaying = usePlayerStore((state) => state.setPlaying);
   const setTracks = usePlayerStore((state) => state.setTracks);
 
@@ -130,8 +104,13 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   }, [playlists, selectedPlaylistId]);
 
   useEffect(() => {
-    const onFocusSearch = () => {
+    const onFocusSearch = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string | undefined;
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (detail) {
+        setQuery(detail);
+        setDebouncedQuery(detail);
+      }
       searchInputRef.current?.focus();
     };
 
@@ -142,6 +121,11 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   useEffect(() => {
     if (searchParams.get("focus") === "search") {
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const q = searchParams.get("q");
+      if (q) {
+        setQuery(q);
+        setDebouncedQuery(q);
+      }
       searchInputRef.current?.focus();
     }
   }, [searchParams]);
@@ -153,19 +137,17 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
       setNewPlaylistCover("");
       setSelectedPlaylistId(playlist.id);
       setSaveError(null);
-      setSaveMessage(`Playlist \"${playlist.name}\" berhasil dibuat.`);
+      setSaveMessage(`Playlist "${playlist.name}" created.`);
       void queryClient.invalidateQueries({ queryKey: ["playlists"] });
     },
     onError: (error) => {
       setSaveMessage(null);
-      setSaveError(error instanceof Error ? error.message : "Gagal membuat playlist.");
+      setSaveError(error instanceof Error ? error.message : "Failed to create playlist.");
     },
   });
 
   const playTrack = (track: Track, queue: Track[]) => {
-    setTracks(queue);
-    setTrack(track);
-    setPlaying(true);
+    storePlayTrack(track, queue);
   };
 
   const onSearch = useCallback(async (rawQuery: string) => {
@@ -281,7 +263,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
     const name = newPlaylistName.trim();
     if (!name) {
       setSaveMessage(null);
-      setSaveError("Nama playlist tidak boleh kosong.");
+      setSaveError("Playlist name cannot be empty.");
       return;
     }
     createPlaylistMutation.mutate({ name, cover: newPlaylistCover.trim() || undefined });
@@ -290,7 +272,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   const onSaveTrack = async (track: Track) => {
     if (!selectedPlaylistId) {
       setSaveMessage(null);
-      setSaveError("Pilih playlist dulu sebelum menyimpan lagu.");
+      setSaveError("Please select a playlist before saving a track.");
       return;
     }
 
@@ -301,10 +283,10 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
     try {
       await saveTrackToPlaylist(selectedPlaylistId, track);
       const playlistName = playlists.find((item) => item.id === selectedPlaylistId)?.name || "playlist";
-      setSaveMessage(`\"${track.title}\" disimpan ke ${playlistName}.`);
+      setSaveMessage(`"${track.title}" saved to ${playlistName}.`);
       void queryClient.invalidateQueries({ queryKey: ["playlists"] });
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Gagal menyimpan lagu.");
+      setSaveError(error instanceof Error ? error.message : "Failed to save track.");
     } finally {
       setSavingTrackId(null);
     }
@@ -315,7 +297,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
 
     return (
       <div
-        className={`grid w-full grid-cols-[2.2fr_1.2fr_0.7fr_auto] items-center gap-2 px-4 py-3 transition ${
+        className={`flex flex-col gap-2 px-4 py-3 transition sm:grid sm:grid-cols-[2.2fr_1.2fr_0.7fr_auto] sm:items-center sm:gap-2 ${
           accent === "youtube" ? "hover:bg-cyan-500/10" : "hover:bg-white/10"
         } ${active ? (accent === "youtube" ? "bg-cyan-500/10" : "bg-white/10") : ""}`}
         key={track.id}
@@ -324,11 +306,10 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           <div className="flex items-center gap-3">
             <Image
               alt={track.title}
-              className="h-10 w-10 shrink-0 rounded-md object-cover"
+              className="h-14 w-14 shrink-0 rounded-md object-cover sm:h-10 sm:w-10"
               src={track.cover}
-              unoptimized
-              width={40}
-              height={40}
+              width={56}
+              height={56}
             />
             <div className="min-w-0">
               <p className="truncate font-medium text-white">{track.title}</p>
@@ -337,11 +318,11 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           </div>
         </button>
 
-        <p className="truncate text-sm text-white/65">{track.album}</p>
-        <p className="text-right text-sm text-white/65">{formatDuration(track.duration)}</p>
+        <p className="hidden truncate text-sm text-white/65 sm:block">{track.album}</p>
+        <p className="hidden text-right text-sm text-white/65 sm:block">{formatDuration(track.duration)}</p>
 
         <Button
-          className="h-8 px-3"
+          className="h-8 w-full px-3 sm:w-auto"
           disabled={!selectedPlaylistId || savingTrackId === track.id}
           onClick={() => void onSaveTrack(track)}
           type="button"
@@ -362,7 +343,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           value={selectedPlaylistId}
         >
           <option className="text-black" value="">
-            Pilih playlist...
+            Select playlist...
           </option>
           {playlists.map((playlist) => (
             <option className="text-black" key={playlist.id} value={playlist.id}>
@@ -373,7 +354,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
 
         <Input
           onChange={(event) => setNewPlaylistName(event.target.value)}
-          placeholder="Buat playlist baru..."
+          placeholder="Create a new playlist..."
           value={newPlaylistName}
         />
         <Input

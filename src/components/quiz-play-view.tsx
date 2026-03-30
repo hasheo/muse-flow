@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -21,176 +21,22 @@ import {
   coerceQuizAnswerMode,
   DEFAULT_QUIZ_ANSWER_MODE,
   getQuizAnswerModeLabel,
-  type QuizAnswerMode,
 } from "@/lib/quiz-answer-mode";
-import { useYouTubePlayer } from "@/hooks/use-youtube-player";
+import { useQuizTimers } from "@/hooks/use-quiz-timers";
+import { useQuizPlayers } from "@/hooks/use-quiz-players";
+import { useQuizSnippetPlayback } from "@/hooks/use-quiz-snippet-playback";
 import { usePlayerStore } from "@/store/player-store";
-import { isQuizAnswerCorrect, normalizeQuizText } from "@/lib/quiz-text";
-
-type PlaylistDetailResponse = {
-  playlist?: {
-    id: string;
-    name: string;
-    cover: string;
-    isQuiz: boolean;
-    isPublic: boolean;
-    difficulty: QuizDifficulty;
-    answerMode: QuizAnswerMode;
-    ownerName?: string;
-    trackCount: number;
-  };
-  tracks?: Track[];
-  quizSessionToken?: string | null;
-  message?: string;
-};
+import { isQuizAnswerCorrect } from "@/lib/quiz-text";
+import {
+  type PlaylistDetailResponse,
+  type QuizToast,
+  type QuestionReview,
+  type QuizAttemptAnswer,
+} from "@/lib/quiz-types";
+import { fetchPlaylistTracks, saveQuizAttempt, isTokenExpiredError, fetchQuizAttempts } from "@/lib/quiz-api";
+import { shuffleTracks, buildMultipleChoiceOptions, getTimerAnnouncement } from "@/lib/quiz-utils";
 
 type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
-type QuizToast = { message: string; type: "error" | "success" } | null;
-type QuestionReview = {
-  trackId: string;
-  questionNumber: number;
-  correctAnswer: string;
-  userAnswer: string;
-  isCorrect: boolean;
-};
-type QuizAttemptAnswer = {
-  trackId: string;
-  userAnswer: string;
-};
-
-type QuizAttemptItem = {
-  id: string;
-  userId: string;
-  userName?: string;
-  score: number;
-  totalQuestions: number;
-  difficulty: string;
-  answerMode: string;
-  createdAt: string;
-};
-type ApiErrorPayload = {
-  code?: string;
-  message?: string;
-  details?: {
-    reason?: string;
-  };
-};
-
-class QuizAttemptSaveError extends Error {
-  code?: string;
-  reason?: string;
-
-  constructor(payload: ApiErrorPayload) {
-    super(payload.message || "Failed to save quiz attempt.");
-    this.name = "QuizAttemptSaveError";
-    this.code = payload.code;
-    this.reason = payload.details?.reason;
-  }
-}
-
-function shuffleItems<T>(list: T[]) {
-  const next = [...list];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
-  }
-  return next;
-}
-
-function shuffleTracks(list: Track[]) {
-  return shuffleItems(list);
-}
-
-function buildMultipleChoiceOptions(track: Track, tracksPool: Track[]) {
-  const normalizedCorrect = normalizeQuizText(track.title);
-  const choices: string[] = [track.title];
-  const used = new Set<string>([normalizedCorrect]);
-  const distractors = shuffleItems(
-    tracksPool.filter((candidate) => normalizeQuizText(candidate.title) !== normalizedCorrect),
-  );
-
-  for (const candidate of distractors) {
-    if (choices.length >= 4) {
-      break;
-    }
-    const normalizedCandidate = normalizeQuizText(candidate.title);
-    if (used.has(normalizedCandidate)) {
-      continue;
-    }
-    used.add(normalizedCandidate);
-    choices.push(candidate.title);
-  }
-
-  while (choices.length < 4) {
-    choices.push(`Pilihan lain ${choices.length}`);
-  }
-
-  return shuffleItems(choices);
-}
-
-function getTimerAnnouncement(secondsLeft: number) {
-  if (secondsLeft === 10) {
-    return "10 detik tersisa.";
-  }
-  if (secondsLeft <= 5 && secondsLeft >= 1) {
-    return `${secondsLeft} detik tersisa.`;
-  }
-  if (secondsLeft === 0) {
-    return "Waktu habis.";
-  }
-  return "";
-}
-
-async function fetchPlaylistTracks(playlistId: string) {
-  const response = await fetch(`/api/playlists/${playlistId}`, { cache: "no-store" });
-  const payload = (await response.json()) as PlaylistDetailResponse;
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to load playlist tracks");
-  }
-
-  return payload;
-}
-
-async function saveQuizAttempt(payload: {
-  playlistId: string;
-  difficulty: QuizDifficulty;
-  answerMode: QuizAnswerMode;
-  quizSessionToken: string;
-  answers: QuizAttemptAnswer[];
-}) {
-  const response = await fetch("/api/quiz/attempts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const parsed = (await response.json()) as ApiErrorPayload;
-  if (!response.ok) {
-    throw new QuizAttemptSaveError(parsed);
-  }
-}
-
-function isTokenExpiredError(error: unknown) {
-  return error instanceof QuizAttemptSaveError && error.code === "UNAUTHORIZED" && error.reason === "Token expired";
-}
-
-async function fetchQuizAttempts(playlistId: string) {
-  const response = await fetch(`/api/quiz/attempts?playlistId=${encodeURIComponent(playlistId)}`, {
-    cache: "no-store",
-  });
-  const parsed = (await response.json()) as {
-    leaderboard?: QuizAttemptItem[];
-    userHistory?: QuizAttemptItem[];
-    message?: string;
-  };
-  if (!response.ok) {
-    throw new Error(parsed.message || "Failed to load quiz attempts.");
-  }
-  return {
-    leaderboard: parsed.leaderboard ?? [],
-    userHistory: parsed.userHistory ?? [],
-  };
-}
 
 export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const queryClient = useQueryClient();
@@ -212,13 +58,9 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const [isFinishConfirmOpen, setIsFinishConfirmOpen] = useState(false);
   const [isFinishingQuiz, setIsFinishingQuiz] = useState(false);
 
-  const pendingSnippetStartRef = useRef<{
-    reject: (error: Error) => void;
-    resolve: () => void;
-  } | null>(null);
-  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const answerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const preloadedTrackIdRef = useRef<string | null>(null);
+  const { clearTimers, cancelPendingSnippetStart, pendingSnippetStartRef, snippetTimeoutRef, answerIntervalRef } = useQuizTimers();
+  const { mainPlayerRef, mainContainerRef, preloadPlayerRef, preloadReadyRef, preloadContainerRef, stopQuizAudio } = useQuizPlayers({ pendingSnippetStartRef, cancelPendingSnippetStart });
+  const { playSnippet, preloadTrackMetadata } = useQuizSnippetPlayback({ mainPlayerRef, preloadPlayerRef, preloadReadyRef, pendingSnippetStartRef, cancelPendingSnippetStart });
 
   const { data: playlistData, isLoading } = useQuery({
     queryKey: ["quiz-playlist-tracks", playlistId],
@@ -239,42 +81,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
   const timerAnnouncement = phase === "playing" || phase === "answering" ? getTimerAnnouncement(timeLeft) : "";
 
-  const clearTimers = useCallback(() => {
-    if (snippetTimeoutRef.current) {
-      clearTimeout(snippetTimeoutRef.current);
-      snippetTimeoutRef.current = null;
-    }
-    if (answerIntervalRef.current) {
-      clearInterval(answerIntervalRef.current);
-      answerIntervalRef.current = null;
-    }
-  }, []);
-
-  const cancelPendingSnippetStart = useCallback((message: string) => {
-    pendingSnippetStartRef.current?.reject(new Error(message));
-    pendingSnippetStartRef.current = null;
-  }, []);
-
-  const QUIZ_PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1, rel: 0 };
-
-  const { playerRef: mainPlayerRef, containerRef: mainContainerRef } = useYouTubePlayer({
-    playerVars: QUIZ_PLAYER_VARS,
-    onStateChange: (event) => {
-      if (event.data === 1) {
-        pendingSnippetStartRef.current?.resolve();
-        pendingSnippetStartRef.current = null;
-      }
-    },
-    onError: () => {
-      cancelPendingSnippetStart("Failed to start snippet playback.");
-    },
-  });
-  const { playerRef: preloadPlayerRef, readyRef: preloadReadyRef, containerRef: preloadContainerRef } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
-
-  const stopQuizAudio = useCallback(() => {
-    mainPlayerRef.current?.pauseVideo();
-  }, [mainPlayerRef]);
-
   useEffect(() => {
     return () => {
       clearTimers();
@@ -294,105 +100,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
     const timeoutId = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(timeoutId);
   }, [toast]);
-
-  const waitForYouTubePlayerInstance = useCallback((timeoutMs = 20000) => {
-    return new Promise<void>((resolve, reject) => {
-      if (mainPlayerRef.current) {
-        resolve();
-        return;
-      }
-
-      const start = Date.now();
-      const intervalId = window.setInterval(() => {
-        if (mainPlayerRef.current) {
-          window.clearInterval(intervalId);
-          resolve();
-          return;
-        }
-
-        if (Date.now() - start >= timeoutMs) {
-          window.clearInterval(intervalId);
-          reject(new Error("YouTube player is not ready yet."));
-        }
-      }, 50);
-    });
-  }, [mainPlayerRef]);
-
-  const playSnippet = useCallback(async (track: Track, startAt: number) => {
-    await waitForYouTubePlayerInstance();
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      const player = mainPlayerRef.current;
-      if (!player) {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
-        continue;
-      }
-
-      try {
-        cancelPendingSnippetStart("Restarting snippet playback.");
-        const playbackStarted = new Promise<void>((resolve, reject) => {
-          const timeoutId = window.setTimeout(() => {
-            if (pendingSnippetStartRef.current === marker) {
-              pendingSnippetStartRef.current = null;
-            }
-            reject(new Error("Snippet took too long to start."));
-          }, 8000);
-
-          const marker = {
-            reject: (error: Error) => {
-              window.clearTimeout(timeoutId);
-              if (pendingSnippetStartRef.current === marker) {
-                pendingSnippetStartRef.current = null;
-              }
-              reject(error);
-            },
-            resolve: () => {
-              window.clearTimeout(timeoutId);
-              if (pendingSnippetStartRef.current === marker) {
-                pendingSnippetStartRef.current = null;
-              }
-              resolve();
-            },
-          };
-
-          pendingSnippetStartRef.current = marker;
-        });
-
-        player.loadVideoById(track.youtubeVideoId, startAt);
-        await playbackStarted;
-        return;
-      } catch (error) {
-        lastError = error;
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
-      }
-    }
-
-    if (lastError instanceof Error) {
-      throw new Error(lastError.message);
-    }
-    throw new Error("YouTube player is not ready yet.");
-  }, [cancelPendingSnippetStart, mainPlayerRef, waitForYouTubePlayerInstance]);
-
-  const preloadTrackMetadata = useCallback((track: Track | null) => {
-    if (!track) {
-      return;
-    }
-    if (preloadedTrackIdRef.current === track.id) {
-      return;
-    }
-    preloadedTrackIdRef.current = track.id;
-
-    if (!preloadPlayerRef.current || !preloadReadyRef.current) {
-      return;
-    }
-    if (preloadPlayerRef.current.cueVideoById) {
-      preloadPlayerRef.current.cueVideoById(track.youtubeVideoId, 0);
-      return;
-    }
-    preloadPlayerRef.current.loadVideoById(track.youtubeVideoId, 0);
-    preloadPlayerRef.current.pauseVideo();
-  }, [preloadPlayerRef, preloadReadyRef]);
 
   const submitAnswer = useCallback(
     (value: string, track: Track, questionIndex: number) => {
@@ -419,10 +126,10 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
       setMultipleChoiceOptions([]);
       setToast({
         type: isCorrect ? "success" : "error",
-        message: isCorrect ? "Jawaban benar! +1 poin" : "Jawaban salah.",
+        message: isCorrect ? "Correct answer! +1 point" : "Wrong answer.",
       });
       setLastResult(isCorrect);
-      setFeedbackMessage(isCorrect ? "Benar!" : `Salah. Jawaban benar: ${track.title}`);
+      setFeedbackMessage(isCorrect ? "Correct!" : `Wrong. The answer was: ${track.title}`);
       setPhase("revealed");
     },
     [clearTimers, stopQuizAudio],
@@ -480,18 +187,18 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
         setPhase((currentPhase) => (currentPhase === "playing" ? "answering" : currentPhase));
       }, snippetDurationSeconds * 1000);
     },
-    [answerMode, clearTimers, playSnippet, preloadTrackMetadata, snippetDurationSeconds, stopQuizAudio, submitAnswer],
+    [answerIntervalRef, answerMode, clearTimers, playSnippet, preloadTrackMetadata, snippetDurationSeconds, snippetTimeoutRef, stopQuizAudio, submitAnswer],
   );
 
   const startQuizFromTracks = useCallback(
     async (tracks: Track[]) => {
       if (!tracks.length) {
-        setErrorMessage("Playlist tidak punya lagu untuk quiz.");
+        setErrorMessage("This playlist has no tracks for the quiz.");
         setPhase("finished");
         return;
       }
       if (answerMode === "multiple_choice" && tracks.length < 4) {
-        setErrorMessage("Mode pilihan ganda butuh minimal 4 lagu di playlist.");
+        setErrorMessage("Multiple choice mode requires at least 4 tracks in the playlist.");
         setPhase("ready");
         return;
       }
@@ -595,7 +302,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
 
   return (
     <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
-      {isLoading ? <p className="mb-3 text-sm text-white/70">Menyiapkan quiz...</p> : null}
+      {isLoading ? <p className="mb-3 text-sm text-white/70">Loading quiz...</p> : null}
       <div className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-sm text-white/70">
@@ -625,20 +332,20 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
       {phase === "ready" ? (
         <div className="space-y-3">
           <p className="text-sm text-white/70">
-            Playlist ini berisi {playlistData?.tracks?.length ?? 0} lagu.
+            This playlist contains {playlistData?.tracks?.length ?? 0} tracks.
           </p>
           <p className="text-xs text-white/55">
-            Difficulty playlist: {getQuizDifficultyLabel(playlistData?.playlist?.difficulty ?? DEFAULT_QUIZ_DIFFICULTY)}
+            Difficulty: {getQuizDifficultyLabel(playlistData?.playlist?.difficulty ?? DEFAULT_QUIZ_DIFFICULTY)}
           </p>
           <p className="text-xs text-white/55">
-            Mode jawaban playlist: {getQuizAnswerModeLabel(answerMode)}
+            Answer mode: {getQuizAnswerModeLabel(answerMode)}
           </p>
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.2em] text-white/50">Difficulty</p>
-            <div className="grid gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
                 <button
-                  className={`rounded-md border px-3 py-2 text-sm transition ${
+                  className={`rounded-md border px-3 py-2.5 text-sm transition ${
                     difficulty === option.value
                       ? "border-lime-400/70 bg-lime-400/20 text-lime-100"
                       : "border-white/15 bg-white/5 text-white/80 hover:border-white/30"
@@ -670,8 +377,8 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
           {phase === "playing" || phase === "answering" ? (
             <p className="min-h-10 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
               {phase === "playing"
-                ? `Playing ${snippetDurationSeconds}-second snippet... dengarkan baik-baik.`
-                : "Snippet selesai. Pilih jawaban."}
+                ? `Playing ${snippetDurationSeconds}-second snippet... listen carefully.`
+                : "Snippet finished. Choose your answer."}
             </p>
           ) : null}
 
@@ -686,15 +393,15 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                 submitAnswer(answerInput, currentTrack, currentIndex);
               }}
             >
-              <p className="text-sm text-lime-300">Waktu menjawab: {timeLeft} detik</p>
+              <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
               {phase === "playing" ? (
-                <p className="text-xs text-white/65">Snippet sedang diputar. Kamu bisa jawab sekarang.</p>
+                <p className="text-xs text-white/65">Snippet is playing. You can answer now.</p>
               ) : null}
               <p aria-live="polite" className="sr-only" role="status">
                 {timerAnnouncement}
               </p>
               <div
-                aria-label="Sisa waktu menjawab"
+                aria-label="Answer time remaining"
                 aria-valuemax={15}
                 aria-valuemin={0}
                 aria-valuenow={timeLeft}
@@ -708,7 +415,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
               </div>
               <Input
                 onChange={(event) => setAnswerInput(event.target.value)}
-                placeholder="Tebak judul lagunya..."
+                placeholder="Guess the song title..."
                 value={answerInput}
               />
               <Button type="submit">Submit Answer</Button>
@@ -717,17 +424,17 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
 
           {(phase === "playing" || phase === "answering") && answerMode === "multiple_choice" ? (
             <div className="space-y-2">
-              <p className="text-sm text-lime-300">Waktu menjawab: {timeLeft} detik</p>
+              <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
               <p className="min-h-5 text-xs text-white/65">
                 {phase === "playing"
-                  ? "Snippet sedang diputar. Kamu bisa jawab sekarang."
-                  : "Snippet selesai. Jawab sekarang."}
+                  ? "Snippet is playing. You can answer now."
+                  : "Snippet finished. Answer now."}
               </p>
               <p aria-live="polite" className="sr-only" role="status">
                 {timerAnnouncement}
               </p>
               <div
-                aria-label="Sisa waktu menjawab"
+                aria-label="Answer time remaining"
                 aria-valuemax={15}
                 aria-valuemin={0}
                 aria-valuenow={timeLeft}
@@ -773,9 +480,9 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
 
       {phase === "finished" ? (
         <div className="space-y-2">
-          <p className="text-lg font-semibold">Quiz selesai</p>
+          <p className="text-lg font-semibold">Quiz finished</p>
           <p className="text-sm text-white/70">
-            Skor akhir: {score}/{quizTracks.length}
+            Final score: {score}/{quizTracks.length}
           </p>
           <div className="mt-2 grid gap-3 lg:grid-cols-2">
             <div className="rounded-lg border border-white/10 bg-white/5 p-3">
@@ -789,12 +496,12 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                     </p>
                   ))
                 ) : (
-                  <p className="text-white/50">Belum ada data leaderboard.</p>
+                  <p className="text-white/50">No leaderboard data yet.</p>
                 )}
               </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Riwayat Kamu</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Your History</p>
               <div className="mt-2 space-y-1 text-sm">
                 {(attemptsData?.userHistory ?? []).length ? (
                   (attemptsData?.userHistory ?? []).map((attempt) => (
@@ -805,7 +512,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                     </p>
                   ))
                 ) : (
-                  <p className="text-white/50">Belum ada attempt sebelumnya.</p>
+                  <p className="text-white/50">No previous attempts.</p>
                 )}
               </div>
             </div>
@@ -819,15 +526,15 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                   .map((entry) => (
                     <div className="rounded-md border border-white/10 px-3 py-2" key={entry.questionNumber}>
                       <p className="text-sm text-white/80">Q{entry.questionNumber}</p>
-                      <p className="text-sm text-white/65">Jawabanmu: {entry.userAnswer || "Tidak dijawab"}</p>
-                      <p className="text-sm text-white/65">Benar: {entry.correctAnswer}</p>
+                      <p className="text-sm text-white/65">Your answer: {entry.userAnswer || "Not answered"}</p>
+                      <p className="text-sm text-white/65">Correct: {entry.correctAnswer}</p>
                       <p className={`text-sm ${entry.isCorrect ? "text-lime-300" : "text-amber-300"}`}>
                         {entry.isCorrect ? "Correct" : "Wrong"}
                       </p>
                     </div>
                   ))
               ) : (
-                <p className="text-sm text-white/50">Belum ada jawaban untuk direview.</p>
+                <p className="text-sm text-white/50">No answers to review yet.</p>
               )}
             </div>
           </div>
@@ -846,14 +553,14 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={mainContainerRef} />
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={preloadContainerRef} />
       <ConfirmDialog
-        cancelLabel="Lanjut Quiz"
+        cancelLabel="Continue Quiz"
         confirmLabel="Finish Quiz"
-        description="Kamu akan menyelesaikan quiz ini dan skor akan disimpan."
+        description="You will finish this quiz and your score will be saved."
         isConfirming={isFinishingQuiz}
         onCancel={cancelFinishQuiz}
         onConfirm={() => void finishQuiz()}
         open={isFinishConfirmOpen}
-        title="Selesaikan quiz sekarang?"
+        title="Finish quiz now?"
       />
     </section>
   );

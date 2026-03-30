@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import NextImage from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
-import { Input } from "@/components/ui/input";
 import type { Track } from "@/lib/catalog";
 import {
   DEFAULT_QUIZ_DIFFICULTY,
@@ -15,17 +16,10 @@ import {
   QUIZ_DIFFICULTY_OPTIONS,
   type QuizDifficulty,
 } from "@/lib/quiz-difficulty";
-import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
+import { DEFAULT_PLAYLIST_COVER, fetchPlaylists } from "@/lib/playlist";
+import { type QuizPlaylistSummary } from "@/lib/quiz-types";
+import { shuffleTracks, QUIZ_PLAYER_VARS } from "@/lib/quiz-utils";
 import { usePlayerStore } from "@/store/player-store";
-
-type PlaylistSummary = {
-  id: string;
-  name: string;
-  cover: string;
-  isQuiz: boolean;
-  difficulty: QuizDifficulty;
-  trackCount: number;
-};
 
 type PlaylistDetailResponse = {
   playlist?: {
@@ -41,29 +35,6 @@ type PlaylistDetailResponse = {
 };
 
 type CompanionPhase = "setup" | "playing" | "finished";
-
-function shuffleTracks(list: Track[]) {
-  const next = [...list];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
-  }
-  return next;
-}
-
-async function fetchPlaylists() {
-  const response = await fetch("/api/playlists", { cache: "no-store" });
-  const payload = (await response.json()) as {
-    playlists?: PlaylistSummary[];
-    message?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(payload.message || "Failed to load playlists");
-  }
-
-  return payload.playlists ?? [];
-}
 
 async function fetchPlaylistTracks(playlistId: string) {
   const response = await fetch(`/api/playlists/${playlistId}`, {
@@ -82,7 +53,7 @@ async function setQuizSettings(playlistId: string, difficulty: QuizDifficulty) {
   const response = await fetch(`/api/playlists/${playlistId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ difficulty }),
+    body: JSON.stringify({ isQuiz: true, difficulty }),
   });
   const payload = (await response.json()) as { message?: string };
   if (!response.ok) {
@@ -107,7 +78,7 @@ async function createQuizPlaylist(
   });
 
   const payload = (await response.json()) as {
-    playlist?: PlaylistSummary;
+    playlist?: QuizPlaylistSummary;
     message?: string;
   };
   if (!response.ok || !payload.playlist) {
@@ -117,39 +88,53 @@ async function createQuizPlaylist(
   return payload.playlist;
 }
 
-const QUIZ_PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1, rel: 0 };
-
 export function QuizCompanionView() {
   const queryClient = useQueryClient();
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
-  const [newPlaylistName, setNewPlaylistName] = useState("");
-  const [newPlaylistCover, setNewPlaylistCover] = useState("");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [phase, setPhase] = useState<CompanionPhase>("setup");
   const [quizTracks, setQuizTracks] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentSnippetStart, setCurrentSnippetStart] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [difficultyOverride, setDifficultyOverride] = useState<QuizDifficulty | null>(null);
+  const [isTrackLoading, setIsTrackLoading] = useState(false);
+
+  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const preloadedTrackIdRef = useRef<string | null>(null);
+  const snippetDurationRef = useRef(0);
 
   const {
     playerRef: mainPlayerRef,
     readyRef: mainReadyRef,
     containerRef: mainContainerRef,
-  } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
+  } = useYouTubePlayer({
+    playerVars: QUIZ_PLAYER_VARS,
+    onStateChange: (event) => {
+      // YT.PlayerState.PLAYING = 1
+      if (event.data === 1) {
+        setIsTrackLoading(false);
+        if (snippetTimeoutRef.current) {
+          clearTimeout(snippetTimeoutRef.current);
+          snippetTimeoutRef.current = null;
+        }
+        snippetTimeoutRef.current = setTimeout(() => {
+          mainPlayerRef.current?.pauseVideo();
+        }, snippetDurationRef.current * 1000);
+      }
+    },
+  });
   const {
     playerRef: preloadPlayerRef,
     readyRef: preloadReadyRef,
     containerRef: preloadContainerRef,
   } = useYouTubePlayer({ playerVars: QUIZ_PLAYER_VARS });
 
-  const snippetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const preloadedTrackIdRef = useRef<string | null>(null);
-
   const { data: playlists = [], isLoading: isPlaylistsLoading } = useQuery({
     queryKey: ["playlists"],
-    queryFn: fetchPlaylists,
+    queryFn: () => fetchPlaylists() as Promise<QuizPlaylistSummary[]>,
   });
 
   const activePlaylistId = selectedPlaylistId || playlists[0]?.id || "";
@@ -159,6 +144,10 @@ export function QuizCompanionView() {
   const currentTrack = quizTracks[currentIndex] ?? null;
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
 
+  useEffect(() => {
+    snippetDurationRef.current = snippetDurationSeconds;
+  }, [snippetDurationSeconds]);
+
   const clearSnippetTimer = useCallback(() => {
     if (snippetTimeoutRef.current) {
       clearTimeout(snippetTimeoutRef.current);
@@ -166,6 +155,7 @@ export function QuizCompanionView() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const stopCompanionAudio = useCallback(() => {
     mainPlayerRef.current?.pauseVideo();
   }, [mainPlayerRef]);
@@ -181,8 +171,7 @@ export function QuizCompanionView() {
       difficulty: QuizDifficulty;
     }) => createQuizPlaylist(name, difficulty, cover),
     onSuccess: async (playlist) => {
-      setNewPlaylistName("");
-      setNewPlaylistCover("");
+      setIsCreateDialogOpen(false);
       setSelectedPlaylistId(playlist.id);
       setErrorMessage(null);
       await queryClient.invalidateQueries({ queryKey: ["playlists"] });
@@ -219,6 +208,7 @@ export function QuizCompanionView() {
     setPlaying(false);
   }, [setPlaying]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const playSnippet = useCallback(async (track: Track, startAt: number) => {
     if (!mainPlayerRef.current || !mainReadyRef.current) {
       throw new Error("YouTube player is not ready yet.");
@@ -251,20 +241,18 @@ export function QuizCompanionView() {
       clearSnippetTimer();
       stopCompanionAudio();
       setErrorMessage(null);
+      setIsTrackLoading(true);
       try {
         await playSnippet(track, snippetStart);
       } catch (error) {
+        setIsTrackLoading(false);
         setErrorMessage(
           error instanceof Error ? error.message : "Failed to play snippet.",
         );
-        return;
       }
-
-      snippetTimeoutRef.current = setTimeout(() => {
-        stopCompanionAudio();
-      }, snippetDurationSeconds * 1000);
+      // Snippet timer is started by onStateChange when PLAYING fires
     },
-    [clearSnippetTimer, playSnippet, snippetDurationSeconds, stopCompanionAudio],
+    [clearSnippetTimer, playSnippet, stopCompanionAudio],
   );
 
   const runQuestion = useCallback(
@@ -289,7 +277,7 @@ export function QuizCompanionView() {
 
   const startCompanion = async () => {
     if (!activePlaylistId) {
-      setErrorMessage("Pilih playlist terlebih dahulu.");
+      setErrorMessage("Please select a playlist first.");
       return;
     }
 
@@ -311,7 +299,7 @@ export function QuizCompanionView() {
 
     const tracks = payload.tracks ?? [];
     if (tracks.length < 1) {
-      setErrorMessage("Playlist tidak punya lagu untuk companion.");
+      setErrorMessage("This playlist has no tracks for companion.");
       return;
     }
 
@@ -365,9 +353,9 @@ export function QuizCompanionView() {
 
         {phase === "setup" ? (
           <div className="mt-3 space-y-3">
-            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <div className="flex gap-2">
               <select
-                className="h-10 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
+                className="h-10 min-w-0 flex-1 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
                 onChange={(event) => {
                   setSelectedPlaylistId(event.target.value);
                   setDifficultyOverride(null);
@@ -375,7 +363,7 @@ export function QuizCompanionView() {
                 value={activePlaylistId}
               >
                 <option className="text-black" value="">
-                  Pilih playlist...
+                  Select playlist...
                 </option>
                 {playlists.map((playlist) => (
                   <option
@@ -389,47 +377,34 @@ export function QuizCompanionView() {
                 ))}
               </select>
 
-              <Input
-                onChange={(event) => setNewPlaylistName(event.target.value)}
-                placeholder="Buat playlist quiz baru..."
-                value={newPlaylistName}
-              />
-
               <Button
-                disabled={createPlaylistMutation.isPending}
-                onClick={() => {
-                  const name = newPlaylistName.trim();
-                  if (!name) {
-                    setErrorMessage("Nama playlist quiz tidak boleh kosong.");
-                    return;
-                  }
-                  createPlaylistMutation.mutate({
-                    name,
-                    cover: newPlaylistCover.trim() || undefined,
-                    difficulty,
-                  });
-                }}
+                onClick={() => setIsCreateDialogOpen(true)}
                 type="button"
                 variant="ghost"
               >
-                {createPlaylistMutation.isPending
-                  ? "Creating..."
-                  : "Create Quiz Playlist"}
+                + New
               </Button>
             </div>
 
-            <Input
-              onChange={(event) => setNewPlaylistCover(event.target.value)}
-              placeholder="Cover URL playlist quiz (optional)"
-              value={newPlaylistCover}
+            <CreatePlaylistDialog
+              open={isCreateDialogOpen}
+              isCreating={createPlaylistMutation.isPending}
+              onCancel={() => setIsCreateDialogOpen(false)}
+              onConfirm={(name, cover) => {
+                createPlaylistMutation.mutate({
+                  name,
+                  cover: cover || undefined,
+                  difficulty,
+                });
+              }}
             />
 
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-[0.2em] text-white/50">Difficulty</p>
-              <div className="grid gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
                   <button
-                    className={`rounded-md border px-3 py-2 text-sm transition ${
+                    className={`rounded-md border px-3 py-2.5 text-sm transition ${
                       difficulty === option.value
                         ? "border-lime-400/70 bg-lime-400/20 text-lime-100"
                         : "border-white/15 bg-white/5 text-white/80 hover:border-white/30"
@@ -449,7 +424,7 @@ export function QuizCompanionView() {
                 disabled={!activePlaylistId || saveQuizSettingsMutation.isPending}
                 onClick={() => {
                   if (!activePlaylistId) {
-                    setErrorMessage("Pilih playlist terlebih dahulu.");
+                    setErrorMessage("Please select a playlist first.");
                     return;
                   }
                   setErrorMessage(null);
@@ -475,15 +450,33 @@ export function QuizCompanionView() {
         ) : null}
 
         {phase === "playing" && currentTrack ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-sm text-white/70">
-              Question {currentIndex + 1}/{quizTracks.length}
+          <div className="mt-4 flex flex-col items-center space-y-5">
+            <p className="text-sm text-white/50">
+              Question {currentIndex + 1} of {quizTracks.length}
             </p>
-            <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
-              Dengarkan snippet {snippetDurationSeconds} detik, tebak lagunya secara offline, lalu
-              lanjut ke pertanyaan berikutnya.
-            </p>
-            <div className="flex gap-2">
+
+            <div className="relative">
+              <NextImage
+                alt={currentTrack.title}
+                className="aspect-square w-56 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-64"
+                height={256}
+                src={currentTrack.cover}
+                unoptimized
+                width={256}
+              />
+              {isTrackLoading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/50">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-lime-400" />
+                </div>
+              )}
+            </div>
+
+            <div className="w-full text-center">
+              <p className="truncate text-lg font-bold text-white">{currentTrack.title}</p>
+              <p className="truncate text-sm text-white/50">{currentTrack.artist}</p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2">
               <Button
                 disabled={currentIndex <= 0}
                 onClick={() => void previousQuestion()}
@@ -510,9 +503,9 @@ export function QuizCompanionView() {
 
         {phase === "finished" ? (
           <div className="mt-3 space-y-2">
-            <p className="text-lg font-semibold">Companion selesai</p>
+            <p className="text-lg font-semibold">Companion finished</p>
             <p className="text-sm text-white/70">
-              Semua pertanyaan sudah diputar ({quizTracks.length} lagu).
+              All questions have been played ({quizTracks.length} tracks).
             </p>
             <div className="flex gap-2">
               <Button

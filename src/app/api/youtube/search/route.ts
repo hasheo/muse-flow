@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import YTMusic from "ytmusic-api";
 import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
@@ -54,6 +55,175 @@ function parseIsoDuration(value: string | undefined) {
   return hours * 3600 + minutes * 60 + seconds;
 }
 
+/**
+ * Strip common YouTube video title noise to extract the actual song name.
+ * e.g. "Shining Your Song (Official Music Video)" → "Shining Your Song"
+ */
+function cleanSongTitle(raw: string): string {
+  return (
+    raw
+      // Remove bracketed/parenthesized suffixes: (Official Video), [MV], (Lyrics), etc.
+      .replace(/[\(\[【](?:official\s*(?:music\s*)?(?:video|mv|audio|lyric(?:s)?\s*(?:video)?)|music\s*video|lyric(?:s)?\s*(?:video)?|mv|m\/v|full\s*ver(?:sion)?\.?|short\s*ver(?:sion)?\.?|audio|hd|hq|4k|remaster(?:ed)?|live|pv|animated?\s*(?:mv|video)?|visualizer|clip\s*officiel|video\s*oficial|歌ってみた|踊ってみた)[\)\]】]/gi,
+        "",
+      )
+      // Remove unbracketed trailing tags after the title
+      .replace(/\s+(?:official\s*(?:music\s*)?(?:video|mv|audio)|music\s*video|lyric(?:s)?\s*video|mv|m\/v)\s*$/gi, "")
+      // Remove "feat./ft." features from title (keep artist clean)
+      .replace(/\s*(?:feat\.?|ft\.?)\s+.+$/i, "")
+      .trim()
+      // Clean up leftover punctuation from removed brackets
+      .replace(/\s*[-–—]\s*$/, "")
+      .trim()
+  );
+}
+
+// ── YouTube Music (unofficial) search via ytmusic-api ──
+
+let ytmusicInstance: YTMusic | null = null;
+
+async function getYTMusic(): Promise<YTMusic> {
+  if (!ytmusicInstance) {
+    ytmusicInstance = new YTMusic();
+    await ytmusicInstance.initialize();
+  }
+  return ytmusicInstance;
+}
+
+async function searchWithYTMusic(query: string): Promise<Track[]> {
+  const ytmusic = await getYTMusic();
+  const songs = await ytmusic.searchSongs(query);
+
+  return songs.slice(0, 20).flatMap((song) => {
+    if (!song.videoId) return [];
+
+    const thumbnail =
+      song.thumbnails.find((t) => t.width >= 300) ??
+      song.thumbnails[song.thumbnails.length - 1];
+
+    return [
+      {
+        id: `yt-${song.videoId}`,
+        sourceType: "youtube" as const,
+        youtubeVideoId: song.videoId,
+        title: song.name,
+        artist: song.artist.name,
+        album: song.album?.name ?? "",
+        cover: thumbnail?.url ?? "",
+        duration: song.duration ?? 0,
+      },
+    ];
+  });
+}
+
+// ── YouTube Data API (official) search – used as fallback / pagination ──
+
+async function searchWithYouTubeAPI(
+  query: string,
+  apiKey: string,
+  pageToken?: string,
+): Promise<{ tracks: Track[]; nextPageToken: string | null; hasMore: boolean }> {
+  const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
+  searchUrl.searchParams.set("part", "snippet");
+  searchUrl.searchParams.set("type", "video");
+  searchUrl.searchParams.set("videoCategoryId", "10");
+  searchUrl.searchParams.set("maxResults", "10");
+  searchUrl.searchParams.set("q", query);
+  if (pageToken) {
+    searchUrl.searchParams.set("pageToken", pageToken);
+  }
+  searchUrl.searchParams.set("key", apiKey);
+
+  const searchResponse = await fetch(searchUrl, { cache: "no-store" });
+  if (!searchResponse.ok) {
+    throw new Error(`YouTube search failed with status ${searchResponse.status}`);
+  }
+
+  const searchData = (await searchResponse.json()) as {
+    items?: YouTubeSearchItem[];
+    nextPageToken?: string;
+  };
+  const items = searchData.items ?? [];
+  const videoIds = items
+    .map((item) => item.id.videoId)
+    .filter((value): value is string => Boolean(value));
+
+  if (!videoIds.length) {
+    return {
+      tracks: [],
+      nextPageToken: searchData.nextPageToken ?? null,
+      hasMore: Boolean(searchData.nextPageToken),
+    };
+  }
+
+  const videoUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
+  videoUrl.searchParams.set("part", "contentDetails");
+  videoUrl.searchParams.set("id", videoIds.join(","));
+  videoUrl.searchParams.set("key", apiKey);
+
+  const detailsResponse = await fetch(videoUrl, { cache: "no-store" });
+  if (!detailsResponse.ok) {
+    throw new Error(`YouTube video details failed with status ${detailsResponse.status}`);
+  }
+
+  const detailsData = (await detailsResponse.json()) as { items?: YouTubeVideoItem[] };
+  const durationMap = new Map<string, number>();
+
+  for (const item of detailsData.items ?? []) {
+    if (!item.id) continue;
+    durationMap.set(item.id, parseIsoDuration(item.contentDetails?.duration));
+  }
+
+  const tracks: Track[] = items.flatMap((item) => {
+    const videoId = item.id.videoId;
+    if (!videoId) return [];
+
+    const rawTitle = item.snippet?.title?.trim() || "Untitled";
+    const rawChannel = item.snippet?.channelTitle?.trim() || "Unknown";
+    const channel = rawChannel.replace(/\s*-\s*Topic$/, "");
+    const cover =
+      item.snippet?.thumbnails?.high?.url ||
+      item.snippet?.thumbnails?.medium?.url ||
+      item.snippet?.thumbnails?.default?.url ||
+      "";
+
+    const separatorMatch = rawTitle.match(/^(.+?)\s*[-–—]\s+(.+)$/);
+    let title: string;
+    let artist: string;
+    let album: string;
+
+    if (separatorMatch) {
+      artist = cleanSongTitle(separatorMatch[1].trim());
+      title = cleanSongTitle(separatorMatch[2].trim());
+      album = channel;
+    } else {
+      title = cleanSongTitle(rawTitle);
+      artist = channel;
+      album = "";
+    }
+
+    return [
+      {
+        id: `yt-${videoId}`,
+        sourceType: "youtube" as const,
+        youtubeVideoId: videoId,
+        title,
+        artist,
+        album,
+        cover,
+        duration: durationMap.get(videoId) ?? 0,
+      },
+    ];
+  });
+
+  return {
+    tracks,
+    nextPageToken: searchData.nextPageToken ?? null,
+    hasMore: Boolean(searchData.nextPageToken),
+  };
+}
+
+// ── Route handler ──
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -104,6 +274,24 @@ export async function GET(request: NextRequest) {
 
     const pageToken = parsedQuery.data.pageToken;
 
+    // For initial search (no pageToken), try YouTube Music API first for clean metadata.
+    // Fall back to YouTube Data API for pagination or if YTMusic fails.
+    if (!pageToken) {
+      try {
+        const tracks = await searchWithYTMusic(query);
+        if (tracks.length > 0) {
+          return NextResponse.json({
+            tracks,
+            nextPageToken: null,
+            hasMore: false,
+          });
+        }
+      } catch {
+        // YTMusic failed — fall through to YouTube Data API
+      }
+    }
+
+    // Fallback: YouTube Data API (also handles pagination)
     const apiKey = process.env.YOUTUBE_API_KEY;
     if (!apiKey) {
       return apiError({
@@ -113,101 +301,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
-    searchUrl.searchParams.set("part", "snippet");
-    searchUrl.searchParams.set("type", "video");
-    searchUrl.searchParams.set("videoCategoryId", "10");
-    searchUrl.searchParams.set("maxResults", "10");
-    searchUrl.searchParams.set("q", query);
-    if (pageToken) {
-      searchUrl.searchParams.set("pageToken", pageToken);
-    }
-    searchUrl.searchParams.set("key", apiKey);
-
-    const searchResponse = await fetch(searchUrl, { cache: "no-store" });
-    if (!searchResponse.ok) {
-      return apiError({
-        status: 502,
-        code: "UPSTREAM_ERROR",
-        message: "Failed to search YouTube.",
-        details: { provider: "youtube", endpoint: "search", status: searchResponse.status },
-      });
-    }
-
-    const searchData = (await searchResponse.json()) as {
-      items?: YouTubeSearchItem[];
-      nextPageToken?: string;
-    };
-    const items = searchData.items ?? [];
-    const videoIds = items.map((item) => item.id.videoId).filter((value): value is string => Boolean(value));
-
-    if (!videoIds.length) {
-      return NextResponse.json({
-        tracks: [],
-        nextPageToken: searchData.nextPageToken ?? null,
-        hasMore: Boolean(searchData.nextPageToken),
-      });
-    }
-
-    const videoUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
-    videoUrl.searchParams.set("part", "contentDetails");
-    videoUrl.searchParams.set("id", videoIds.join(","));
-    videoUrl.searchParams.set("key", apiKey);
-
-    const detailsResponse = await fetch(videoUrl, { cache: "no-store" });
-    if (!detailsResponse.ok) {
-      return apiError({
-        status: 502,
-        code: "UPSTREAM_ERROR",
-        message: "Failed to fetch video details.",
-        details: { provider: "youtube", endpoint: "videos", status: detailsResponse.status },
-      });
-    }
-
-    const detailsData = (await detailsResponse.json()) as { items?: YouTubeVideoItem[] };
-    const durationMap = new Map<string, number>();
-
-    for (const item of detailsData.items ?? []) {
-      if (!item.id) {
-        continue;
-      }
-      durationMap.set(item.id, parseIsoDuration(item.contentDetails?.duration));
-    }
-
-    const tracks: Track[] = items.flatMap((item) => {
-      const videoId = item.id.videoId;
-      if (!videoId) {
-        return [];
-      }
-
-      const title = item.snippet?.title?.trim() || "Untitled";
-      const artist = item.snippet?.channelTitle?.trim() || "YouTube";
-      const cover =
-        item.snippet?.thumbnails?.high?.url ||
-        item.snippet?.thumbnails?.medium?.url ||
-        item.snippet?.thumbnails?.default?.url ||
-        "";
-
-      return [
-        {
-          id: `yt-${videoId}`,
-          sourceType: "youtube",
-          youtubeVideoId: videoId,
-          title,
-          artist,
-          album: "YouTube Music",
-          cover,
-          duration: durationMap.get(videoId) ?? 0,
-        },
-      ];
-    });
-
-    const nextPageToken = searchData.nextPageToken ?? null;
+    const result = await searchWithYouTubeAPI(query, apiKey, pageToken);
 
     return NextResponse.json({
-      tracks,
-      nextPageToken,
-      hasMore: Boolean(nextPageToken),
+      tracks: result.tracks,
+      nextPageToken: result.nextPageToken,
+      hasMore: result.hasMore,
     });
   } catch (error) {
     return apiError({

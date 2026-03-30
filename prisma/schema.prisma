@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -20,12 +20,15 @@ model User {
   sessions      Session[]
   playlists     Playlist[]
   quizAttempts  QuizAttempt[]
+  collaborations PlaylistCollaborator[]
+  usedInvites    PlaylistInvite[]       @relation("UsedInvites")
+  addedTracks    PlaylistTrack[]        @relation("AddedTracks")
 }
 
 model Playlist {
   id        String          @id @default(cuid())
   name      String
-  cover     String          @default("https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=80")
+  cover     String          @default("https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=80") @db.Text
   isQuiz    Boolean         @default(false)
   isPublic  Boolean         @default(false)
   difficulty String         @default("normal")
@@ -36,6 +39,8 @@ model Playlist {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   tracks    PlaylistTrack[]
   quizAttempts QuizAttempt[]
+  collaborators PlaylistCollaborator[]
+  invites       PlaylistInvite[]
 }
 
 model QuizAttempt {
@@ -64,14 +69,49 @@ model PlaylistTrack {
   artist         String
   album          String
   duration       Int
-  cover          String
+  cover          String   @db.Text
   youtubeVideoId String?
   mimeType       String?
-  sourcePath     String?
+  sourcePath     String?  @db.Text
+  addedById      String?
   createdAt      DateTime @default(now())
   playlist       Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  addedBy        User?    @relation("AddedTracks", fields: [addedById], references: [id], onDelete: SetNull)
 
   @@unique([playlistId, trackId])
+}
+
+enum InviteType {
+  email
+  link
+}
+
+model PlaylistCollaborator {
+  id         String   @id @default(cuid())
+  playlistId String
+  userId     String
+  joinedAt   DateTime @default(now())
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, userId])
+  @@index([userId])
+}
+
+model PlaylistInvite {
+  id         String      @id @default(cuid())
+  playlistId String
+  type       InviteType
+  email      String?
+  token      String      @unique @default(cuid())
+  used       Boolean     @default(false)
+  usedById   String?
+  createdAt  DateTime    @default(now())
+  expiresAt  DateTime?
+  playlist   Playlist    @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  usedBy     User?       @relation("UsedInvites", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([email, type, used])
 }
 
 model Account {
@@ -80,12 +120,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

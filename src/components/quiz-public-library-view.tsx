@@ -132,9 +132,9 @@ export function QuizPublicLibraryView() {
   if (!playlists.length) {
     return (
       <div className="rounded-2xl border border-white/10 bg-black/35 p-6">
-        <p className="text-lg font-semibold">Belum ada Public Quiz Playlist</p>
+        <p className="text-lg font-semibold">No Public Quiz Playlists Yet</p>
         <p className="mt-2 text-sm text-white/65">
-          Buat playlist quiz kamu dan aktifkan mode public dari halaman Quiz Setup.
+          Create a quiz playlist and enable public mode from the Quiz Setup page.
         </p>
       </div>
     );
@@ -144,7 +144,7 @@ export function QuizPublicLibraryView() {
     <div className="space-y-4">
       <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Explore Public Quiz</p>
-        <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid gap-2 grid-cols-2 lg:grid-cols-4">
           <Input
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search quiz name or owner..."
@@ -204,8 +204,8 @@ export function QuizPublicLibraryView() {
 
       {!filteredPlaylists.length ? (
         <div className="rounded-2xl border border-white/10 bg-black/35 p-6">
-          <p className="text-lg font-semibold">Tidak ada quiz yang cocok</p>
-          <p className="mt-2 text-sm text-white/65">Coba ubah search atau filter kamu.</p>
+          <p className="text-lg font-semibold">No matching quizzes</p>
+          <p className="mt-2 text-sm text-white/65">Try changing the search or filters.</p>
         </div>
       ) : null}
 
@@ -218,10 +218,10 @@ export function QuizPublicLibraryView() {
           >
             <Image
               alt={playlist.name}
-              className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+              className="h-32 w-full object-cover transition duration-300 group-hover:scale-105 sm:h-44"
               height={176}
               src={playlist.cover}
-              unoptimized
+             
               width={420}
             />
             <div className="space-y-2 p-4">
