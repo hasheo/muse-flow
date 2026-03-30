@@ -7,6 +7,9 @@ vi.mock("@/lib/db", () => ({
       findMany: vi.fn(),
       create: vi.fn(),
     },
+    playlistCollaborator: {
+      findMany: vi.fn(),
+    },
   },
 }));
 vi.mock("@/lib/api-security", () => ({
@@ -43,6 +46,7 @@ describe("GET /api/playlists", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getServerSession).mockResolvedValue(mockSession as never);
+    vi.mocked(db.playlistCollaborator.findMany).mockResolvedValue([] as never);
   });
 
   it("returns 401 when not authenticated", async () => {

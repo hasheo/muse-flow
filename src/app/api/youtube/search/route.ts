@@ -55,6 +55,13 @@ function parseIsoDuration(value: string | undefined) {
   return hours * 3600 + minutes * 60 + seconds;
 }
 
+class UpstreamError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UpstreamError";
+  }
+}
+
 /**
  * Strip common YouTube video title noise to extract the actual song name.
  * e.g. "Shining Your Song (Official Music Video)" → "Shining Your Song"
@@ -135,7 +142,7 @@ async function searchWithYouTubeAPI(
 
   const searchResponse = await fetch(searchUrl, { cache: "no-store" });
   if (!searchResponse.ok) {
-    throw new Error(`YouTube search failed with status ${searchResponse.status}`);
+    throw new UpstreamError(`YouTube search failed with status ${searchResponse.status}`);
   }
 
   const searchData = (await searchResponse.json()) as {
@@ -309,6 +316,14 @@ export async function GET(request: NextRequest) {
       hasMore: result.hasMore,
     });
   } catch (error) {
+    if (error instanceof UpstreamError) {
+      return apiError({
+        status: 502,
+        code: "UPSTREAM_ERROR",
+        message: "The upstream search service returned an error.",
+        details: error instanceof Error ? { reason: error.message } : undefined,
+      });
+    }
     return apiError({
       status: 500,
       code: "INTERNAL_SERVER_ERROR",

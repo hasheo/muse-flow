@@ -11,6 +11,9 @@ vi.mock("@/lib/db", () => ({
     user: {
       findUnique: vi.fn(),
     },
+    playlistCollaborator: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 vi.mock("@/lib/api-security", () => ({
@@ -56,6 +59,7 @@ describe("GET /api/playlists/[id]", () => {
       name: "Test User",
       email: "test@example.com",
     } as never);
+    vi.mocked(db.playlistCollaborator.findUnique).mockResolvedValue(null as never);
   });
 
   it("returns 401 when not authenticated", async () => {

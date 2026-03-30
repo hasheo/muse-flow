@@ -1,10 +1,17 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, retryAfterMs: 0 }),
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 49, resetAt: 0, retryAfterMs: 0 }),
   getClientIp: vi.fn().mockReturnValue("127.0.0.1"),
+}));
+// Force YTMusic to always fail so tests exercise the YouTube Data API fallback path.
+vi.mock("ytmusic-api", () => ({
+  default: class {
+    initialize() { return Promise.reject(new Error("YTMusic unavailable in test")); }
+    searchSongs() { return Promise.reject(new Error("YTMusic unavailable in test")); }
+  },
 }));
 
 import { getServerSession } from "next-auth";
@@ -41,7 +48,11 @@ describe("GET /api/youtube/search", () => {
     vi.mocked(getServerSession).mockResolvedValue(mockSession as never);
     // Reset rate-limit mock to "allowed" after each test — clearAllMocks only clears
     // call history, not mock implementations set via .mockResolvedValue().
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, retryAfterMs: 0 });
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 49, resetAt: 0, retryAfterMs: 0 });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -112,7 +123,7 @@ describe("GET /api/youtube/search", () => {
   });
 
   it("returns 429 when rate limited", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, retryAfterMs: 30_000 });
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, resetAt: Date.now() + 30_000, retryAfterMs: 30_000 });
     const req = new NextRequest("http://localhost/api/youtube/search?q=test");
     const res = await GET(req);
     expect(res.status).toBe(429);
