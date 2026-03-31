@@ -6,7 +6,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/hooks/use-toast";
 import type { Track } from "@/lib/catalog";
 import {
   coerceQuizDifficulty,
@@ -29,7 +32,6 @@ import { usePlayerStore } from "@/store/player-store";
 import { isQuizAnswerCorrect } from "@/lib/quiz-text";
 import {
   type PlaylistDetailResponse,
-  type QuizToast,
   type QuestionReview,
   type QuizAttemptAnswer,
 } from "@/lib/quiz-types";
@@ -40,6 +42,7 @@ type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
 
 export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const queryClient = useQueryClient();
+  const { toast: showToast } = useToast();
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const [phase, setPhase] = useState<QuizPhase>("ready");
@@ -51,7 +54,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const [lastResult, setLastResult] = useState<null | boolean>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [toast, setToast] = useState<QuizToast>(null);
   const [difficultyOverride, setDifficultyOverride] = useState<QuizDifficulty | null>(null);
   const [multipleChoiceOptions, setMultipleChoiceOptions] = useState<string[]>([]);
   const [reviewEntries, setReviewEntries] = useState<QuestionReview[]>([]);
@@ -93,14 +95,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
     setPlaying(false);
   }, [setPlaying]);
 
-  useEffect(() => {
-    if (!toast) {
-      return;
-    }
-    const timeoutId = setTimeout(() => setToast(null), 2200);
-    return () => clearTimeout(timeoutId);
-  }, [toast]);
-
   const submitAnswer = useCallback(
     (value: string, track: Track, questionIndex: number) => {
       clearTimers();
@@ -124,15 +118,15 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
         return next;
       });
       setMultipleChoiceOptions([]);
-      setToast({
-        type: isCorrect ? "success" : "error",
+      showToast({
+        variant: isCorrect ? "success" : "error",
         message: isCorrect ? "Correct answer! +1 point" : "Wrong answer.",
       });
       setLastResult(isCorrect);
       setFeedbackMessage(isCorrect ? "Correct!" : `Wrong. The answer was: ${track.title}`);
       setPhase("revealed");
     },
-    [clearTimers, stopQuizAudio],
+    [clearTimers, showToast, stopQuizAudio],
   );
 
   const runQuestion = useCallback(
@@ -302,7 +296,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
 
   return (
     <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
-      {isLoading ? <p className="mb-3 text-sm text-white/70">Loading quiz...</p> : null}
+      {isLoading ? <div className="mb-3"><Spinner size="sm" /></div> : null}
       <div className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-sm text-white/70">
@@ -313,21 +307,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
           Back to Public Quiz
         </Link>
       </div>
-
-      {toast ? (
-        <div
-          aria-atomic="true"
-          aria-live="polite"
-          role="status"
-          className={`mb-3 rounded-lg border px-3 py-2 text-sm ${
-            toast.type === "success"
-              ? "border-lime-300/45 bg-lime-300/10 text-lime-200"
-              : "border-red-300/45 bg-red-300/10 text-red-200"
-          }`}
-        >
-          {toast.message}
-        </div>
-      ) : null}
 
       {phase === "ready" ? (
         <div className="space-y-3">
@@ -549,7 +528,7 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
         </div>
       ) : null}
 
-      {errorMessage ? <p className="mt-3 text-sm text-red-300">{errorMessage}</p> : null}
+      {errorMessage ? <ErrorState className="mt-3" compact message={errorMessage} /> : null}
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={mainContainerRef} />
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={preloadContainerRef} />
       <ConfirmDialog

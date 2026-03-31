@@ -3,9 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { Library, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonPlaylistGrid } from "@/components/ui/skeleton";
 import { fetchPlaylists, type PlaylistSummary } from "@/lib/playlist";
 
 type PendingInvite = {
@@ -117,14 +120,15 @@ export function LibraryView() {
   );
 
   if (isLoading) {
-    return <p className="text-sm text-white/70">Loading your playlists...</p>;
+    return <SkeletonPlaylistGrid count={6} />;
   }
 
   if (error) {
     return (
-      <p className="text-sm text-red-300">
-        {error instanceof Error ? error.message : "Failed to load playlists"}
-      </p>
+      <ErrorState
+        message={error instanceof Error ? error.message : "Failed to load playlists"}
+        onRetry={() => void queryClient.invalidateQueries({ queryKey: ["playlists"] })}
+      />
     );
   }
 
@@ -135,12 +139,12 @@ export function LibraryView() {
 
   if (isEmpty) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-black/35 p-6">
-        <p className="text-lg font-semibold">Your Library is empty</p>
-        <p className="mt-2 text-sm text-white/65">
-          Create a playlist on the Home page, then save your favorite tracks.
-        </p>
-      </div>
+      <EmptyState
+        action={{ label: "Go to Home", href: "/app" }}
+        description="Create a playlist on the Home page, then save your favorite tracks."
+        icon={<Library />}
+        title="Your Library is empty"
+      />
     );
   }
 

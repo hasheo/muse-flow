@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
+import { ErrorState } from "@/components/ui/error-state";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
 import type { Track } from "@/lib/catalog";
 import {
@@ -523,7 +524,7 @@ export function QuizCompanionView() {
         ) : null}
 
         {errorMessage ? (
-          <p className="mt-3 text-sm text-red-300">{errorMessage}</p>
+          <ErrorState className="mt-3" compact message={errorMessage} />
         ) : null}
       </section>
 

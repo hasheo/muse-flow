@@ -6,8 +6,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { ManageTracksDialog } from "@/components/manage-tracks-dialog";
+import { useToast } from "@/hooks/use-toast";
 import type { Track } from "@/lib/catalog";
 import {
   coerceQuizDifficulty,
@@ -34,7 +36,6 @@ import { isQuizAnswerCorrect } from "@/lib/quiz-text";
 import {
   type PlaylistDetailResponse,
   type QuizPlaylistSummary,
-  type QuizToast,
   type QuestionReview,
   type QuizAttemptAnswer,
 } from "@/lib/quiz-types";
@@ -95,6 +96,7 @@ async function createQuizPlaylist(
 
 export function QuizView() {
   const queryClient = useQueryClient();
+  const { toast: showToast } = useToast();
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
@@ -122,7 +124,6 @@ export function QuizView() {
   const [lastResult, setLastResult] = useState<null | boolean>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [toast, setToast] = useState<QuizToast>(null);
   const [difficultyOverride, setDifficultyOverride] = useState<QuizDifficulty | null>(null);
   const [answerModeOverride, setAnswerModeOverride] = useState<QuizAnswerMode | null>(null);
   const [multipleChoiceOptions, setMultipleChoiceOptions] = useState<string[]>([]);
@@ -191,14 +192,6 @@ export function QuizView() {
   }, [setPlaying]);
 
   useEffect(() => {
-    if (!toast) {
-      return;
-    }
-    const timeoutId = setTimeout(() => setToast(null), 2200);
-    return () => clearTimeout(timeoutId);
-  }, [toast]);
-
-  useEffect(() => {
     return () => {
       searchAbortControllerRef.current?.abort();
       loadMoreAbortControllerRef.current?.abort();
@@ -228,15 +221,15 @@ export function QuizView() {
         return next;
       });
       setMultipleChoiceOptions([]);
-      setToast({
-        type: isCorrect ? "success" : "error",
+      showToast({
+        variant: isCorrect ? "success" : "error",
         message: isCorrect ? "Correct answer! +1 point" : "Wrong answer.",
       });
       setLastResult(isCorrect);
       setFeedbackMessage(isCorrect ? "Benar!" : `Salah. Jawaban benar: ${track.title}`);
       setPhase("revealed");
     },
-    [clearTimers, stopQuizAudio],
+    [clearTimers, showToast, stopQuizAudio],
   );
 
   const runQuestion = useCallback(
@@ -751,21 +744,6 @@ export function QuizView() {
       <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
         <p className="text-xs uppercase tracking-[0.2em] text-white/50">Quiz Setup</p>
 
-        {toast ? (
-          <div
-            aria-atomic="true"
-            aria-live="polite"
-            role="status"
-            className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
-              toast.type === "success"
-                ? "border-lime-300/45 bg-lime-300/10 text-lime-200"
-                : "border-red-300/45 bg-red-300/10 text-red-200"
-            }`}
-          >
-            {toast.message}
-          </div>
-        ) : null}
-
         {phase === "setup" ? (
           <div className="mt-3 space-y-4 sm:space-y-3">
             <div className="flex gap-2">
@@ -1132,7 +1110,7 @@ export function QuizView() {
           </div>
         ) : null}
 
-        {errorMessage ? <p className="mt-3 text-sm text-red-300">{errorMessage}</p> : null}
+        {errorMessage ? <ErrorState className="mt-3" compact message={errorMessage} /> : null}
       </section>
 
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={mainContainerRef} />

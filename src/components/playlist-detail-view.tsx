@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Pause, Pencil, Play, Trash2, Users, X } from "lucide-react";
+import { ArrowLeft, Music, Pause, Pencil, Play, Search, Trash2, Users, X } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -10,9 +10,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
+import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { ManageCollaboratorsDialog } from "@/components/manage-collaborators-dialog";
 import { ManageTracksDialog } from "@/components/manage-tracks-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_PLAYLIST_COVER } from "@/lib/playlist";
 import { formatDuration } from "@/lib/format";
 import type { Track } from "@/lib/catalog";
@@ -59,9 +63,9 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   const queryClient = useQueryClient();
   const router = useRouter();
 
+  const { toast } = useToast();
+
   const [deletingTrackId, setDeletingTrackId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [draggingTrackId, setDraggingTrackId] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -111,16 +115,14 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       }
     },
     onSuccess: async () => {
-      setActionError(null);
-      setActionMessage("Track removed from playlist.");
+      toast({ message: "Track removed from playlist.", variant: "success" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
       ]);
     },
     onError: (e) => {
-      setActionMessage(null);
-      setActionError(e instanceof Error ? e.message : "Failed to delete track");
+      toast({ message: e instanceof Error ? e.message : "Failed to delete track", variant: "error" });
     },
     onSettled: () => {
       setDeletingTrackId(null);
@@ -140,13 +142,11 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       }
     },
     onSuccess: async () => {
-      setActionError(null);
-      setActionMessage("Track order updated.");
+      toast({ message: "Track order updated.", variant: "success" });
       await queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] });
     },
     onError: (e) => {
-      setActionMessage(null);
-      setActionError(e instanceof Error ? e.message : "Failed to reorder playlist");
+      toast({ message: e instanceof Error ? e.message : "Failed to reorder playlist", variant: "error" });
       void queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] });
     },
   });
@@ -164,8 +164,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       }
     },
     onSuccess: async () => {
-      setActionError(null);
-      setActionMessage("Playlist updated.");
+      toast({ message: "Playlist updated.", variant: "success" });
       setIsEditing(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
@@ -173,8 +172,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       ]);
     },
     onError: (e) => {
-      setActionMessage(null);
-      setActionError(e instanceof Error ? e.message : "Failed to update playlist");
+      toast({ message: e instanceof Error ? e.message : "Failed to update playlist", variant: "error" });
     },
   });
 
@@ -191,8 +189,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       router.push("/library");
     },
     onError: (e) => {
-      setActionMessage(null);
-      setActionError(e instanceof Error ? e.message : "Failed to delete playlist");
+      toast({ message: e instanceof Error ? e.message : "Failed to delete playlist", variant: "error" });
     },
   });
 
@@ -314,15 +311,46 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   }, [loadMoreSearchResults, searchResults.length]);
 
   if (isLoading) {
-    return <p className="text-sm text-white/70">Loading playlist...</p>;
+    return (
+      <div className="flex flex-col gap-8 lg:flex-row">
+        <div className="flex shrink-0 flex-col items-center lg:w-72 lg:items-start">
+          <Skeleton className="aspect-square w-56 rounded-2xl lg:w-full" />
+          <SkeletonText className="mt-5 w-full" lines={2} />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className="flex items-center gap-4 px-3 py-2.5">
+              <Skeleton className="h-12 w-12 shrink-0 rounded-md" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+              <Skeleton className="h-3 w-10" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (error) {
-    return <p className="text-sm text-red-300">{error instanceof Error ? error.message : "Failed to load playlist"}</p>;
+    return (
+      <ErrorState
+        message={error instanceof Error ? error.message : "Failed to load playlist"}
+        onRetry={() => void queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] })}
+      />
+    );
   }
 
   if (!playlistDetail?.playlist) {
-    return <p className="text-sm text-white/70">Playlist not found.</p>;
+    return (
+      <EmptyState
+        action={{ label: "Back to library", href: "/library" }}
+        description="This playlist may have been deleted or you don't have access."
+        icon={<Search />}
+        title="Playlist not found"
+      />
+    );
   }
 
   const playlist = playlistDetail.playlist;
@@ -350,17 +378,6 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         Back to library
       </Link>
 
-      {actionMessage ? (
-        <p aria-atomic="true" aria-live="polite" className="mb-4 px-1 text-sm text-lime-300" role="status">
-          {actionMessage}
-        </p>
-      ) : null}
-      {actionError ? (
-        <p aria-atomic="true" aria-live="assertive" className="mb-4 px-1 text-sm text-red-300" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Left: Playlist info */}
         <div className="flex shrink-0 flex-col items-center lg:w-72 lg:items-start">
@@ -382,8 +399,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                 const name = String(formData.get("playlistName") ?? "").trim();
                 const cover = String(formData.get("playlistCover") ?? "").trim();
                 if (!name) {
-                  setActionMessage(null);
-                  setActionError("Playlist name cannot be empty.");
+                  toast({ message: "Playlist name cannot be empty.", variant: "error" });
                   return;
                 }
                 updatePlaylistMutation.mutate({ name, cover: cover || DEFAULT_PLAYLIST_COVER });
@@ -469,7 +485,12 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         {/* Right: Track list */}
         <div className="min-w-0 flex-1">
           {!tracks.length ? (
-            <p className="py-10 text-center text-sm text-white/50">This playlist has no tracks yet.</p>
+            <EmptyState
+              className="py-10"
+              description="Use Manage Tracks to search and add songs."
+              icon={<Music />}
+              title="No tracks yet"
+            />
           ) : (
             <div className="divide-y divide-white/5">
               {tracks.map((track) => {
@@ -564,7 +585,6 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeletingTrackId(track.id);
-                          setActionError(null);
                           deleteTrackMutation.mutate({ trackId: track.id });
                         }}
                         type="button"
@@ -596,7 +616,6 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         }}
         onConfirm={() => {
           setIsDeleteConfirmOpen(false);
-          setActionError(null);
           deletePlaylistMutation.mutate();
         }}
         open={isDeleteConfirmOpen}
