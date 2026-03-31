@@ -138,7 +138,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
       setAnswerInput("");
       setMultipleChoiceOptions([]);
       setLastResult(null);
-      setFeedbackMessage(null);
       setErrorMessage(null);
       setPhase("playing");
 

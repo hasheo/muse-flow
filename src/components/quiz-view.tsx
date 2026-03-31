@@ -241,7 +241,6 @@ export function QuizView() {
       setAnswerInput("");
       setMultipleChoiceOptions([]);
       setLastResult(null);
-      setFeedbackMessage(null);
       setErrorMessage(null);
       setPhase("playing");
 
