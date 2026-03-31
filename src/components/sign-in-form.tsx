@@ -2,9 +2,16 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+
+const credentialsSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -32,6 +39,7 @@ function GoogleIcon({ className }: { className?: string }) {
 export function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const onGoogleSignIn = async () => {
     setError(null);
@@ -44,13 +52,89 @@ export function SignInForm() {
     }
   };
 
+  const onCredentialsSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    setValidationErrors({});
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    const parsed = credentialsSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0] as string;
+        fieldErrors[field] = issue.message;
+      }
+      setValidationErrors(fieldErrors);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: "/app",
+      });
+
+      if (result?.error) {
+        setError("Invalid credentials");
+        setIsLoading(false);
+      } else if (result?.url) {
+        window.location.href = result.url;
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Card className="w-full max-w-md border-white/15 bg-black/55 text-white backdrop-blur">
       <CardHeader>
         <CardTitle className="text-2xl">Sign in</CardTitle>
       </CardHeader>
-      <CardContent>
-        {error ? <p className="mb-4 text-sm text-rose-300">{error}</p> : null}
+      <CardContent className="space-y-6">
+        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+        <form className="space-y-4" onSubmit={(e) => void onCredentialsSignIn(e)}>
+          <div className="space-y-1">
+            <Input
+              disabled={isLoading}
+              name="email"
+              placeholder="Email"
+              type="email"
+            />
+            {validationErrors.email ? (
+              <p className="text-sm text-rose-300">{validationErrors.email}</p>
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <Input
+              disabled={isLoading}
+              name="password"
+              placeholder="Password"
+              type="password"
+            />
+            {validationErrors.password ? (
+              <p className="text-sm text-rose-300">{validationErrors.password}</p>
+            ) : null}
+          </div>
+          <Button className="w-full" disabled={isLoading} type="submit">
+            {isLoading ? "Signing in..." : "Continue"}
+          </Button>
+        </form>
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-white/15" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-black/55 px-2 text-white/50">or</span>
+          </div>
+        </div>
         <Button
           className="w-full gap-3"
           disabled={isLoading}
