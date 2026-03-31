@@ -14,7 +14,7 @@ import {
 } from "@/hooks/use-toast";
 
 const toastVariants = cva(
-  "pointer-events-auto flex w-80 items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-lg animate-[toast-slide-in_0.25s_ease-out]",
+  "pointer-events-auto flex w-96 items-center gap-3 rounded-xl border px-5 py-4 text-base shadow-lg animate-[toast-slide-in_0.25s_ease-out]",
   {
     variants: {
       variant: {
@@ -34,12 +34,12 @@ function ToastEntry({ item, onDismiss }: { item: ToastItem; onDismiss: () => voi
     <div className={cn(toastVariants({ variant: item.variant }))} role="status" aria-live="polite">
       <span className="flex-1">{item.message}</span>
       <button
-        className="shrink-0 rounded-md p-0.5 transition hover:bg-white/10"
+        className="shrink-0 rounded-md p-1 transition hover:bg-white/10"
         onClick={onDismiss}
         type="button"
         aria-label="Dismiss"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-4 w-4" />
       </button>
     </div>
   );
@@ -51,7 +51,7 @@ function ToastViewport() {
   if (typeof document === "undefined" || toasts.length === 0) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col gap-2">
+    <div className="pointer-events-none fixed top-6 right-6 z-[100] flex flex-col gap-3">
       {toasts.map((item) => (
         <ToastEntry key={item.id} item={item} onDismiss={() => dismiss(item.id)} />
       ))}

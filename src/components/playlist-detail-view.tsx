@@ -205,15 +205,17 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
         throw new Error(payload.message || "Failed to add track");
       }
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, { track }) => {
       setSavingTrackId(null);
+      toast({ message: `Added "${track.title}" to playlist`, variant: "success" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
       ]);
     },
-    onError: () => {
+    onError: (e) => {
       setSavingTrackId(null);
+      toast({ message: e instanceof Error ? e.message : "Failed to add track", variant: "error" });
     },
   });
 
@@ -231,13 +233,15 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     },
     onSuccess: async () => {
       setRemovingTrackId(null);
+      toast({ message: "Track removed from playlist", variant: "success" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
       ]);
     },
-    onError: () => {
+    onError: (e) => {
       setRemovingTrackId(null);
+      toast({ message: e instanceof Error ? e.message : "Failed to remove track", variant: "error" });
     },
   });
 
