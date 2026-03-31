@@ -560,7 +560,6 @@ export function QuizView() {
     }
 
     setErrorMessage(null);
-    setFeedbackMessage(null);
     clearPreviewTimeout();
     stopQuizAudio();
     setPreviewingTrackId(null);
