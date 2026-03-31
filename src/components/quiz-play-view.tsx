@@ -439,30 +439,30 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
           ) : null}
 
           {phase === "revealed" && quizTracks[currentIndex] ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div
-                className={`flex items-center gap-4 rounded-xl border p-4 ${
+                className={`flex flex-col items-center gap-4 rounded-xl border p-5 ${
                   lastResult
                     ? "border-lime-300/30 bg-lime-950/80"
                     : "border-red-300/30 bg-red-950/80"
                 }`}
               >
+                <p className={`text-lg font-bold ${lastResult ? "text-lime-300" : "text-red-300"}`}>
+                  {lastResult ? "Correct!" : "Wrong!"}
+                </p>
                 <Image
                   alt={quizTracks[currentIndex].title}
-                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                  height={64}
+                  className="aspect-square w-40 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-52"
+                  height={208}
                   src={quizTracks[currentIndex].cover}
                   unoptimized
-                  width={64}
+                  width={208}
                 />
-                <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-semibold ${lastResult ? "text-lime-300" : "text-red-300"}`}>
-                    {lastResult ? "Correct!" : "Wrong!"}
-                  </p>
-                  <p className="mt-0.5 truncate text-sm font-medium text-white">
+                <div className="w-full text-center">
+                  <p className="truncate text-lg font-bold text-white">
                     {quizTracks[currentIndex].title}
                   </p>
-                  <p className="truncate text-xs text-white/50">
+                  <p className="truncate text-sm text-white/50">
                     {quizTracks[currentIndex].artist}
                   </p>
                 </div>
