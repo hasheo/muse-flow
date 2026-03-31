@@ -169,7 +169,7 @@ async function searchWithYouTubeAPI(
 
   const detailsResponse = await fetch(videoUrl, { cache: "no-store" });
   if (!detailsResponse.ok) {
-    throw new Error(`YouTube video details failed with status ${detailsResponse.status}`);
+    throw new UpstreamError(`YouTube video details failed with status ${detailsResponse.status}`);
   }
 
   const detailsData = (await detailsResponse.json()) as { items?: YouTubeVideoItem[] };
