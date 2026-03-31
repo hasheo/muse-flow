@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -9,7 +10,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { useToast } from "@/hooks/use-toast";
 import type { Track } from "@/lib/catalog";
 import {
   coerceQuizDifficulty,
@@ -42,7 +42,6 @@ type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
 
 export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const queryClient = useQueryClient();
-  const { toast: showToast } = useToast();
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const [phase, setPhase] = useState<QuizPhase>("ready");
@@ -52,7 +51,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const [timeLeft, setTimeLeft] = useState(15);
   const [answerInput, setAnswerInput] = useState("");
   const [lastResult, setLastResult] = useState<null | boolean>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [difficultyOverride, setDifficultyOverride] = useState<QuizDifficulty | null>(null);
   const [multipleChoiceOptions, setMultipleChoiceOptions] = useState<string[]>([]);
@@ -118,15 +116,10 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
         return next;
       });
       setMultipleChoiceOptions([]);
-      showToast({
-        variant: isCorrect ? "success" : "error",
-        message: isCorrect ? "Correct answer! +1 point" : "Wrong answer.",
-      });
       setLastResult(isCorrect);
-      setFeedbackMessage(isCorrect ? "Correct!" : `Wrong. The answer was: ${track.title}`);
       setPhase("revealed");
     },
-    [clearTimers, showToast, stopQuizAudio],
+    [clearTimers, stopQuizAudio],
   );
 
   const runQuestion = useCallback(
@@ -446,9 +439,35 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
             </div>
           ) : null}
 
-          {phase === "revealed" ? (
-            <div className="space-y-2">
-              <p className={`text-sm ${lastResult ? "text-lime-300" : "text-amber-300"}`}>{feedbackMessage}</p>
+          {phase === "revealed" && quizTracks[currentIndex] ? (
+            <div className="space-y-3">
+              <div
+                className={`flex items-center gap-4 rounded-xl border p-4 ${
+                  lastResult
+                    ? "border-lime-300/30 bg-lime-950/80"
+                    : "border-red-300/30 bg-red-950/80"
+                }`}
+              >
+                <Image
+                  alt={quizTracks[currentIndex].title}
+                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                  height={64}
+                  src={quizTracks[currentIndex].cover}
+                  unoptimized
+                  width={64}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-semibold ${lastResult ? "text-lime-300" : "text-red-300"}`}>
+                    {lastResult ? "Correct!" : "Wrong!"}
+                  </p>
+                  <p className="mt-0.5 truncate text-sm font-medium text-white">
+                    {quizTracks[currentIndex].title}
+                  </p>
+                  <p className="truncate text-xs text-white/50">
+                    {quizTracks[currentIndex].artist}
+                  </p>
+                </div>
+              </div>
               <Button onClick={() => void nextQuestion()} type="button" variant="ghost">
                 {currentIndex + 1 >= quizTracks.length ? "Finish Quiz" : "Next Question"}
               </Button>
