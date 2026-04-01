@@ -1,11 +1,15 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
+import { Gamepad2, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
+import { SkeletonPlaylistGrid } from "@/components/ui/skeleton";
 import { coerceQuizAnswerMode, getQuizAnswerModeLabel } from "@/lib/quiz-answer-mode";
 import {
   coerceQuizDifficulty,
@@ -60,6 +64,7 @@ async function fetchPublicQuizPlaylists() {
 }
 
 export function QuizPublicLibraryView() {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState<QuizDifficulty | "all">("all");
   const [minTracks, setMinTracks] = useState<(typeof MIN_TRACK_OPTIONS)[number]>(0);
@@ -118,25 +123,25 @@ export function QuizPublicLibraryView() {
   }, [difficultyFilter, minTracks, playlists, searchQuery, sortBy]);
 
   if (isLoading) {
-    return <p className="text-sm text-white/70">Loading public quiz playlists...</p>;
+    return <SkeletonPlaylistGrid count={6} />;
   }
 
   if (error) {
     return (
-      <p className="text-sm text-red-300">
-        {error instanceof Error ? error.message : "Failed to load public quiz playlists"}
-      </p>
+      <ErrorState
+        message={error instanceof Error ? error.message : "Failed to load public quiz playlists"}
+        onRetry={() => void queryClient.invalidateQueries({ queryKey: ["public-quiz-playlists"] })}
+      />
     );
   }
 
   if (!playlists.length) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-black/35 p-6">
-        <p className="text-lg font-semibold">No Public Quiz Playlists Yet</p>
-        <p className="mt-2 text-sm text-white/65">
-          Create a quiz playlist and enable public mode from the Quiz Setup page.
-        </p>
-      </div>
+      <EmptyState
+        description="Create a quiz playlist and enable public mode from the Quiz Setup page."
+        icon={<Gamepad2 />}
+        title="No Public Quiz Playlists Yet"
+      />
     );
   }
 
@@ -203,10 +208,11 @@ export function QuizPublicLibraryView() {
       </section>
 
       {!filteredPlaylists.length ? (
-        <div className="rounded-2xl border border-white/10 bg-black/35 p-6">
-          <p className="text-lg font-semibold">No matching quizzes</p>
-          <p className="mt-2 text-sm text-white/65">Try changing the search or filters.</p>
-        </div>
+        <EmptyState
+          description="Try changing the search or filters."
+          icon={<Search />}
+          title="No matching quizzes"
+        />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
 import { lazy, Suspense, useState } from "react";
 
+import { ToastProvider } from "@/components/ui/toast";
+
 const ReactQueryDevtools =
   process.env.NODE_ENV === "development"
     ? lazy(() =>
@@ -29,7 +31,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
         <Suspense>
           <ReactQueryDevtools initialIsOpen={false} />
         </Suspense>
