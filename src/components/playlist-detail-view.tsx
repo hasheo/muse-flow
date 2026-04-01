@@ -433,7 +433,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
           {!isEditing ? (
             <div className="mt-5 flex items-center gap-3">
               <button
-                className="grid h-14 w-14 place-items-center rounded-full bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:opacity-50"
+                className="grid h-14 w-14 place-items-center rounded-full border-0 bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:opacity-50"
                 disabled={tracks.length === 0}
                 onClick={togglePlayAll}
                 type="button"
