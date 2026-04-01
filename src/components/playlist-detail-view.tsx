@@ -384,7 +384,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Left: Playlist info */}
-        <div className="flex shrink-0 flex-col items-center lg:w-72 lg:items-start">
+        <div className="flex shrink-0 flex-col items-center lg:sticky lg:top-0 lg:w-72 lg:self-start lg:items-start">
           <Image
             alt={playlist.name}
             className="aspect-square w-56 rounded-2xl object-cover lg:w-full"
@@ -433,7 +433,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
           {!isEditing ? (
             <div className="mt-5 flex items-center gap-3">
               <button
-                className="grid h-14 w-14 place-items-center rounded-full border-0 bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:opacity-50"
+                className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-0 bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:opacity-50"
                 disabled={tracks.length === 0}
                 onClick={togglePlayAll}
                 type="button"
@@ -496,7 +496,7 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
               title="No tracks yet"
             />
           ) : (
-            <div className="divide-y divide-white/5">
+            <div className="max-h-[70vh] divide-y divide-white/5 overflow-y-auto pr-1">
               {tracks.map((track) => {
                 const active = currentTrack?.id === track.id;
 
