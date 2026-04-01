@@ -1,7 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Music, Pause, Pencil, Play, Search, Trash2, Users, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Music,
+  Pause,
+  Pencil,
+  Play,
+  Search,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -41,7 +51,9 @@ type PlaylistDetailResponse = {
 };
 
 async function fetchPlaylistTracks(playlistId: string) {
-  const response = await fetch(`/api/playlists/${playlistId}`, { cache: "no-store" });
+  const response = await fetch(`/api/playlists/${playlistId}`, {
+    cache: "no-store",
+  });
   const payload = (await response.json()) as PlaylistDetailResponse;
 
   if (!response.ok) {
@@ -52,7 +64,10 @@ async function fetchPlaylistTracks(playlistId: string) {
 }
 
 function formatTotalDuration(tracks: Track[]) {
-  const totalSeconds = tracks.reduce((sum, t) => sum + (Number.isFinite(t.duration) ? t.duration : 0), 0);
+  const totalSeconds = tracks.reduce(
+    (sum, t) => sum + (Number.isFinite(t.duration) ? t.duration : 0),
+    0,
+  );
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   if (hours > 0) return `${hours}h ${minutes}m`;
@@ -77,7 +92,9 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isLoadingMoreSearch, setIsLoadingMoreSearch] = useState(false);
   const [hasMoreSearchResults, setHasMoreSearchResults] = useState(false);
-  const [searchNextPageToken, setSearchNextPageToken] = useState<string | null>(null);
+  const [searchNextPageToken, setSearchNextPageToken] = useState<string | null>(
+    null,
+  );
   const [activeSearchTerm, setActiveSearchTerm] = useState("");
   const [savingTrackId, setSavingTrackId] = useState<string | null>(null);
   const [removingTrackId, setRemovingTrackId] = useState<string | null>(null);
@@ -117,12 +134,17 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     onSuccess: async () => {
       toast({ message: "Track removed from playlist.", variant: "success" });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["playlist-tracks", playlistId],
+        }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
       ]);
     },
     onError: (e) => {
-      toast({ message: e instanceof Error ? e.message : "Failed to delete track", variant: "error" });
+      toast({
+        message: e instanceof Error ? e.message : "Failed to delete track",
+        variant: "error",
+      });
     },
     onSettled: () => {
       setDeletingTrackId(null);
@@ -143,11 +165,18 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     },
     onSuccess: async () => {
       toast({ message: "Track order updated.", variant: "success" });
-      await queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["playlist-tracks", playlistId],
+      });
     },
     onError: (e) => {
-      toast({ message: e instanceof Error ? e.message : "Failed to reorder playlist", variant: "error" });
-      void queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] });
+      toast({
+        message: e instanceof Error ? e.message : "Failed to reorder playlist",
+        variant: "error",
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["playlist-tracks", playlistId],
+      });
     },
   });
 
@@ -167,18 +196,25 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       toast({ message: "Playlist updated.", variant: "success" });
       setIsEditing(false);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["playlist-tracks", playlistId],
+        }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
       ]);
     },
     onError: (e) => {
-      toast({ message: e instanceof Error ? e.message : "Failed to update playlist", variant: "error" });
+      toast({
+        message: e instanceof Error ? e.message : "Failed to update playlist",
+        variant: "error",
+      });
     },
   });
 
   const deletePlaylistMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/playlists/${playlistId}`, { method: "DELETE" });
+      const response = await fetch(`/api/playlists/${playlistId}`, {
+        method: "DELETE",
+      });
       const payload = (await response.json()) as { message?: string };
       if (!response.ok) {
         throw new Error(payload.message || "Failed to delete playlist");
@@ -189,7 +225,10 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       router.push("/library");
     },
     onError: (e) => {
-      toast({ message: e instanceof Error ? e.message : "Failed to delete playlist", variant: "error" });
+      toast({
+        message: e instanceof Error ? e.message : "Failed to delete playlist",
+        variant: "error",
+      });
     },
   });
 
@@ -207,15 +246,23 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     },
     onSuccess: async (_data, { track }) => {
       setSavingTrackId(null);
-      toast({ message: `Added "${track.title}" to playlist`, variant: "success" });
+      toast({
+        message: `Added "${track.title}" to playlist`,
+        variant: "success",
+      });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["playlist-tracks", playlistId],
+        }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
       ]);
     },
     onError: (e) => {
       setSavingTrackId(null);
-      toast({ message: e instanceof Error ? e.message : "Failed to add track", variant: "error" });
+      toast({
+        message: e instanceof Error ? e.message : "Failed to add track",
+        variant: "error",
+      });
     },
   });
 
@@ -235,17 +282,25 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       setRemovingTrackId(null);
       toast({ message: "Track removed from playlist", variant: "success" });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["playlist-tracks", playlistId],
+        }),
         queryClient.invalidateQueries({ queryKey: ["playlists"] }),
       ]);
     },
     onError: (e) => {
       setRemovingTrackId(null);
-      toast({ message: e instanceof Error ? e.message : "Failed to remove track", variant: "error" });
+      toast({
+        message: e instanceof Error ? e.message : "Failed to remove track",
+        variant: "error",
+      });
     },
   });
 
-  const existingTrackIds = useMemo(() => new Set(tracks.map((t) => t.id)), [tracks]);
+  const existingTrackIds = useMemo(
+    () => new Set(tracks.map((t) => t.id)),
+    [tracks],
+  );
 
   const onSearchTracks = useCallback(async (rawQuery: string) => {
     const trimmed = rawQuery.trim();
@@ -260,8 +315,16 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
     setIsSearching(true);
     setSearchError(null);
     try {
-      const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(trimmed)}`, { cache: "no-store" });
-      const payload = (await response.json()) as { tracks?: Track[]; nextPageToken?: string; hasMore?: boolean; message?: string };
+      const response = await fetch(
+        `/api/youtube/search?q=${encodeURIComponent(trimmed)}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as {
+        tracks?: Track[];
+        nextPageToken?: string;
+        hasMore?: boolean;
+        message?: string;
+      };
       if (!response.ok) throw new Error(payload.message || "Search failed");
       setActiveSearchTerm(trimmed);
       setSearchResults(payload.tracks ?? []);
@@ -279,15 +342,28 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   }, []);
 
   const loadMoreSearchResults = useCallback(async () => {
-    if (!searchNextPageToken || !hasMoreSearchResults || isLoadingMoreSearch || isSearching || !activeSearchTerm) return;
+    if (
+      !searchNextPageToken ||
+      !hasMoreSearchResults ||
+      isLoadingMoreSearch ||
+      isSearching ||
+      !activeSearchTerm
+    )
+      return;
     setIsLoadingMoreSearch(true);
     try {
       const response = await fetch(
         `/api/youtube/search?q=${encodeURIComponent(activeSearchTerm)}&pageToken=${encodeURIComponent(searchNextPageToken)}`,
         { cache: "no-store" },
       );
-      const payload = (await response.json()) as { tracks?: Track[]; nextPageToken?: string; hasMore?: boolean; message?: string };
-      if (!response.ok) throw new Error(payload.message || "Failed to load more");
+      const payload = (await response.json()) as {
+        tracks?: Track[];
+        nextPageToken?: string;
+        hasMore?: boolean;
+        message?: string;
+      };
+      if (!response.ok)
+        throw new Error(payload.message || "Failed to load more");
       setSearchResults((prev) => {
         const merged = [...prev, ...(payload.tracks ?? [])];
         const unique = new Map<string, Track>();
@@ -297,17 +373,27 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
       setSearchNextPageToken(payload.nextPageToken ?? null);
       setHasMoreSearchResults(Boolean(payload.hasMore));
     } catch (err) {
-      setSearchError(err instanceof Error ? err.message : "Failed to load more");
+      setSearchError(
+        err instanceof Error ? err.message : "Failed to load more",
+      );
     } finally {
       setIsLoadingMoreSearch(false);
     }
-  }, [activeSearchTerm, hasMoreSearchResults, isLoadingMoreSearch, isSearching, searchNextPageToken]);
+  }, [
+    activeSearchTerm,
+    hasMoreSearchResults,
+    isLoadingMoreSearch,
+    isSearching,
+    searchNextPageToken,
+  ]);
 
   useEffect(() => {
     const sentinel = searchSentinelRef.current;
     if (!sentinel || !searchResults.length) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0]?.isIntersecting) void loadMoreSearchResults(); },
+      (entries) => {
+        if (entries[0]?.isIntersecting) void loadMoreSearchResults();
+      },
       { root: null, rootMargin: "120px", threshold: 0.1 },
     );
     observer.observe(sentinel);
@@ -340,8 +426,14 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   if (error) {
     return (
       <ErrorState
-        message={error instanceof Error ? error.message : "Failed to load playlist"}
-        onRetry={() => void queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] })}
+        message={
+          error instanceof Error ? error.message : "Failed to load playlist"
+        }
+        onRetry={() =>
+          void queryClient.invalidateQueries({
+            queryKey: ["playlist-tracks", playlistId],
+          })
+        }
       />
     );
   }
@@ -362,7 +454,10 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
   const isOwner = role === "owner";
   const isCollaborator = role === "collaborator";
 
-  const isPlaylistPlaying = isPlaying && currentTrack != null && tracks.some((t) => t.id === currentTrack.id);
+  const isPlaylistPlaying =
+    isPlaying &&
+    currentTrack != null &&
+    tracks.some((t) => t.id === currentTrack.id);
 
   const togglePlayAll = () => {
     if (tracks.length === 0) return;
@@ -377,7 +472,10 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
 
   return (
     <div>
-      <Link className="mb-6 inline-flex items-center gap-2 text-sm text-white/70 hover:text-white" href="/library">
+      <Link
+        className="mb-6 inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
+        href="/library"
+      >
         <ArrowLeft className="h-4 w-4" />
         Back to library
       </Link>
@@ -401,38 +499,68 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                 event.preventDefault();
                 const formData = new FormData(event.currentTarget);
                 const name = String(formData.get("playlistName") ?? "").trim();
-                const cover = String(formData.get("playlistCover") ?? "").trim();
+                const cover = String(
+                  formData.get("playlistCover") ?? "",
+                ).trim();
                 if (!name) {
-                  toast({ message: "Playlist name cannot be empty.", variant: "error" });
+                  toast({
+                    message: "Playlist name cannot be empty.",
+                    variant: "error",
+                  });
                   return;
                 }
-                updatePlaylistMutation.mutate({ name, cover: cover || DEFAULT_PLAYLIST_COVER });
+                updatePlaylistMutation.mutate({
+                  name,
+                  cover: cover || DEFAULT_PLAYLIST_COVER,
+                });
               }}
             >
-              <Input defaultValue={playlist.name} key={`${playlist.id}-name`} name="playlistName" placeholder="Playlist name" />
-              <Input defaultValue={playlist.cover} key={`${playlist.id}-cover`} name="playlistCover" placeholder="Cover URL" />
+              <Input
+                defaultValue={playlist.name}
+                key={`${playlist.id}-name`}
+                name="playlistName"
+                placeholder="Playlist name"
+              />
+              <Input
+                defaultValue={playlist.cover}
+                key={`${playlist.id}-cover`}
+                name="playlistCover"
+                placeholder="Cover URL"
+              />
               <div className="flex gap-2">
-                <Button className="flex-1" disabled={updatePlaylistMutation.isPending} type="submit">
+                <Button
+                  className="flex-1"
+                  disabled={updatePlaylistMutation.isPending}
+                  type="submit"
+                >
                   {updatePlaylistMutation.isPending ? "Saving..." : "Save"}
                 </Button>
-                <Button onClick={() => setIsEditing(false)} type="button" variant="ghost">
+                <Button
+                  onClick={() => setIsEditing(false)}
+                  type="button"
+                  variant="ghost"
+                >
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             </form>
           ) : (
             <div className="mt-5 w-full text-center lg:text-left">
-              <h2 className="text-2xl font-bold tracking-tight">{playlist.name}</h2>
+              <h2 className="text-2xl font-bold tracking-tight">
+                {playlist.name}
+              </h2>
               <p className="mt-1 text-sm text-white/50">
                 {tracks.length} {tracks.length === 1 ? "song" : "songs"}
-                {tracks.length > 0 ? ` \u00B7 ${formatTotalDuration(tracks)}` : ""}
+                {tracks.length > 0
+                  ? ` \u00B7 ${formatTotalDuration(tracks)}`
+                  : ""}
               </p>
             </div>
           )}
 
           {!isEditing ? (
-            <div className="mt-5 w-full space-y-3">
-              <div className="flex items-center gap-3">
+            <div className="mt-5 w-full space-y-4">
+              <div className="flex items-center justify-center gap-3 lg:justify-start">
                 <button
                   className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-0 bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:opacity-50"
                   disabled={tracks.length === 0}
@@ -442,7 +570,10 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                   {isPlaylistPlaying ? (
                     <Pause className="h-6 w-6" fill="currentColor" />
                   ) : (
-                    <Play className="h-6 w-6 translate-x-0.5" fill="currentColor" />
+                    <Play
+                      className="h-6 w-6 translate-x-0.5"
+                      fill="currentColor"
+                    />
                   )}
                 </button>
                 {isOwner && (
@@ -511,28 +642,47 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                     onClick={() => {
                       storePlayTrack(track, tracks);
                     }}
-                    onDragEnd={() => { if (!isOwner) return; setDraggingTrackId(null); }}
-                    onDragOver={(event) => { if (!isOwner) return; event.preventDefault(); }}
-                    onDragStart={() => { if (!isOwner) return; setDraggingTrackId(track.id); }}
+                    onDragEnd={() => {
+                      if (!isOwner) return;
+                      setDraggingTrackId(null);
+                    }}
+                    onDragOver={(event) => {
+                      if (!isOwner) return;
+                      event.preventDefault();
+                    }}
+                    onDragStart={() => {
+                      if (!isOwner) return;
+                      setDraggingTrackId(track.id);
+                    }}
                     onDrop={() => {
                       if (!isOwner) return;
-                      if (!draggingTrackId || draggingTrackId === track.id) return;
+                      if (!draggingTrackId || draggingTrackId === track.id)
+                        return;
 
-                      const sourceIndex = tracks.findIndex((item) => item.id === draggingTrackId);
-                      const targetIndex = tracks.findIndex((item) => item.id === track.id);
+                      const sourceIndex = tracks.findIndex(
+                        (item) => item.id === draggingTrackId,
+                      );
+                      const targetIndex = tracks.findIndex(
+                        (item) => item.id === track.id,
+                      );
                       if (sourceIndex < 0 || targetIndex < 0) return;
 
                       const nextTracks = [...tracks];
                       const [dragged] = nextTracks.splice(sourceIndex, 1);
                       nextTracks.splice(targetIndex, 0, dragged);
 
-                      queryClient.setQueryData<PlaylistDetailResponse>(["playlist-tracks", playlistId], (prev) => {
-                        if (!prev) return prev;
-                        return { ...prev, tracks: nextTracks };
-                      });
+                      queryClient.setQueryData<PlaylistDetailResponse>(
+                        ["playlist-tracks", playlistId],
+                        (prev) => {
+                          if (!prev) return prev;
+                          return { ...prev, tracks: nextTracks };
+                        },
+                      );
 
                       setDraggingTrackId(null);
-                      reorderTracksMutation.mutate({ trackIds: nextTracks.map((item) => item.id) });
+                      reorderTracksMutation.mutate({
+                        trackIds: nextTracks.map((item) => item.id),
+                      });
                     }}
                   >
                     {/* Thumbnail */}
@@ -546,13 +696,18 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                         width={48}
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
-                        <Play className="h-5 w-5 text-white" fill="currentColor" />
+                        <Play
+                          className="h-5 w-5 text-white"
+                          fill="currentColor"
+                        />
                       </div>
                     </div>
 
                     {/* Title & artist */}
                     <div className="min-w-0 flex-1">
-                      <p className={`truncate text-sm font-medium ${active ? "text-lime-400" : "text-white"}`}>
+                      <p
+                        className={`truncate text-sm font-medium ${active ? "text-lime-400" : "text-white"}`}
+                      >
                         {track.title}
                       </p>
                       <p className="truncate text-xs text-white/50">
@@ -578,12 +733,16 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
                             {(track.addedBy.name || "?")[0].toUpperCase()}
                           </div>
                         )}
-                        <span className="text-xs text-white/30">{track.addedBy.name || "Unknown"}</span>
+                        <span className="text-xs text-white/30">
+                          {track.addedBy.name || "Unknown"}
+                        </span>
                       </div>
                     )}
 
                     {/* Delete button */}
-                    {(isOwner || (isCollaborator && track.addedBy?.id === session?.user?.id)) && (
+                    {(isOwner ||
+                      (isCollaborator &&
+                        track.addedBy?.id === session?.user?.id)) && (
                       <button
                         className="shrink-0 text-white/30 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
                         disabled={deletingTrackId === track.id}
