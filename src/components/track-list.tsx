@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import type { Track } from "@/lib/catalog";
 import { formatDuration } from "@/lib/format";
 import { fetchPlaylists, type PlaylistSummary } from "@/lib/playlist";
@@ -65,6 +66,7 @@ async function readApiPayload(response: Response): Promise<ApiPayload> {
 
 export function TrackList({ tracks }: { tracks: Track[] }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const searchParams = useSearchParams();
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
@@ -84,8 +86,6 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   const [selectedPlaylistId, setSelectedPlaylistId] = useState("");
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [newPlaylistCover, setNewPlaylistCover] = useState("");
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [savingTrackId, setSavingTrackId] = useState<string | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -136,13 +136,11 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
       setNewPlaylistName("");
       setNewPlaylistCover("");
       setSelectedPlaylistId(playlist.id);
-      setSaveError(null);
-      setSaveMessage(`Playlist "${playlist.name}" created.`);
+      toast({ message: `Playlist "${playlist.name}" created`, variant: "success" });
       void queryClient.invalidateQueries({ queryKey: ["playlists"] });
     },
     onError: (error) => {
-      setSaveMessage(null);
-      setSaveError(error instanceof Error ? error.message : "Failed to create playlist.");
+      toast({ message: error instanceof Error ? error.message : "Failed to create playlist", variant: "error" });
     },
   });
 
@@ -262,8 +260,7 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
   const onCreatePlaylist = () => {
     const name = newPlaylistName.trim();
     if (!name) {
-      setSaveMessage(null);
-      setSaveError("Playlist name cannot be empty.");
+      toast({ message: "Playlist name cannot be empty", variant: "error" });
       return;
     }
     createPlaylistMutation.mutate({ name, cover: newPlaylistCover.trim() || undefined });
@@ -271,22 +268,19 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
 
   const onSaveTrack = async (track: Track) => {
     if (!selectedPlaylistId) {
-      setSaveMessage(null);
-      setSaveError("Please select a playlist before saving a track.");
+      toast({ message: "Please select a playlist before saving a track", variant: "error" });
       return;
     }
 
     setSavingTrackId(track.id);
-    setSaveMessage(null);
-    setSaveError(null);
 
     try {
       await saveTrackToPlaylist(selectedPlaylistId, track);
       const playlistName = playlists.find((item) => item.id === selectedPlaylistId)?.name || "playlist";
-      setSaveMessage(`"${track.title}" saved to ${playlistName}.`);
+      toast({ message: `"${track.title}" saved to ${playlistName}`, variant: "success" });
       void queryClient.invalidateQueries({ queryKey: ["playlists"] });
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Failed to save track.");
+      toast({ message: error instanceof Error ? error.message : "Failed to save track", variant: "error" });
     } finally {
       setSavingTrackId(null);
     }
@@ -372,9 +366,6 @@ export function TrackList({ tracks }: { tracks: Track[] }) {
           {createPlaylistMutation.isPending ? "Creating..." : "Create Playlist"}
         </Button>
       </div>
-
-      {saveMessage ? <p className="mb-3 text-sm text-lime-300">{saveMessage}</p> : null}
-      {saveError ? <p className="mb-3 text-sm text-red-300">{saveError}</p> : null}
 
       <form
         className="mb-4 flex flex-col gap-2 sm:flex-row"

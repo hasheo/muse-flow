@@ -649,17 +649,17 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
           setSearchResults([]);
           setSearchError(null);
         }}
-        onPreview={() => {}}
+        onPreview={(track) => storePlayTrack(track, [track])}
         onRemoveTrack={(trackId) => {
           setRemovingTrackId(trackId);
           removeTrackFromDialogMutation.mutate({ trackId });
         }}
         onSearch={(q) => void onSearchTracks(q)}
         onSearchQueryChange={setSearchQuery}
-        onStopPreview={() => {}}
+        onStopPreview={() => setPlaying(false)}
         open={isManageTracksOpen}
         playlistName={playlist.name}
-        previewingTrackId={null}
+        previewingTrackId={isPlaying && currentTrack ? currentTrack.id : null}
         removingTrackId={removingTrackId}
         savingTrackId={savingTrackId}
         searchError={searchError}
