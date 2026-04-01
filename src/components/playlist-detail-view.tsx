@@ -431,53 +431,54 @@ export function PlaylistDetailView({ playlistId }: { playlistId: string }) {
           )}
 
           {!isEditing ? (
-            <div className="mt-5 flex items-center gap-3">
-              <button
-                className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-0 bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:opacity-50"
-                disabled={tracks.length === 0}
-                onClick={togglePlayAll}
-                type="button"
-              >
-                {isPlaylistPlaying ? (
-                  <Pause className="h-6 w-6" fill="currentColor" />
-                ) : (
-                  <Play className="h-6 w-6 translate-x-0.5" fill="currentColor" />
+            <div className="mt-5 w-full space-y-3">
+              <div className="flex items-center gap-3">
+                <button
+                  className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-0 bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:opacity-50"
+                  disabled={tracks.length === 0}
+                  onClick={togglePlayAll}
+                  type="button"
+                >
+                  {isPlaylistPlaying ? (
+                    <Pause className="h-6 w-6" fill="currentColor" />
+                  ) : (
+                    <Play className="h-6 w-6 translate-x-0.5" fill="currentColor" />
+                  )}
+                </button>
+                {isOwner && (
+                  <button
+                    className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-white/40 hover:text-white"
+                    onClick={() => setIsEditing(true)}
+                    type="button"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
                 )}
-              </button>
-              {isOwner && (
-                <button
-                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-white/40 hover:text-white"
-                  onClick={() => setIsEditing(true)}
-                  type="button"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-              )}
-              {isOwner && (
-                <button
-                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-red-400/60 hover:text-red-400"
-                  disabled={deletePlaylistMutation.isPending}
-                  onClick={() => setIsDeleteConfirmOpen(true)}
-                  type="button"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-              {isOwner && (
-                <button
-                  className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-lime-300/40 hover:text-lime-300"
-                  onClick={() => setIsCollabDialogOpen(true)}
-                  type="button"
-                >
-                  <Users className="h-4 w-4" />
-                </button>
-              )}
+                {isOwner && (
+                  <button
+                    className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-red-400/60 hover:text-red-400"
+                    disabled={deletePlaylistMutation.isPending}
+                    onClick={() => setIsDeleteConfirmOpen(true)}
+                    type="button"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+                {isOwner && (
+                  <button
+                    className="grid h-10 w-10 place-items-center rounded-full border border-white/20 text-white/70 transition hover:border-lime-300/40 hover:text-lime-300"
+                    onClick={() => setIsCollabDialogOpen(true)}
+                    type="button"
+                  >
+                    <Users className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               {(isOwner || isCollaborator) && (
                 <Button
-                  className="h-10 rounded-full"
+                  className="w-full"
                   onClick={() => setIsManageTracksOpen(true)}
                   type="button"
-                  variant="ghost"
                 >
                   Manage Tracks
                 </Button>
