@@ -9,6 +9,9 @@ import { usePlayerSync } from "@/hooks/use-player-sync";
 import { usePlayerRetry } from "@/hooks/use-player-retry";
 import { useLoadingTimeout } from "@/hooks/use-loading-timeout";
 
+const PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1, rel: 0 };
+const FORCE_PLAY_DELAY_MS = 1500;
+
 export function AudioEngine() {
   const trackLoadedRef = useRef(false);
   const forcePlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -21,13 +24,13 @@ export function AudioEngine() {
   const progress = usePlayerStore((s) => s.progress);
   const playbackState = usePlayerStore((s) => s.playbackState);
 
-  // --- Extracted hooks ---
+  // --- Hooks (callbacks stored in refs by each hook, so hoisting is safe) ---
 
   const { playerRef, readyRef, containerRef } = useYouTubePlayer({
     onReady: handleReady,
     onStateChange: handleStateChange,
     onError: handleError,
-    playerVars: { autoplay: 0, controls: 0, playsinline: 1, rel: 0 },
+    playerVars: PLAYER_VARS,
   });
 
   const { startSync, stopSync } = usePlayerSync(playerRef, {
@@ -35,11 +38,7 @@ export function AudioEngine() {
     setDuration: (s: number) => usePlayerStore.getState().setDuration(s),
   });
 
-  const { scheduleRetry, resetRetry } = usePlayerRetry({
-    onRetriesExhausted: () => {
-      // Handled inline at the call site in handleError
-    },
-  });
+  const { scheduleRetry, resetRetry } = usePlayerRetry({});
 
   useLoadingTimeout(playbackState, {
     onStuck: handleLoadingStuck,
@@ -143,12 +142,15 @@ export function AudioEngine() {
 
     player.loadVideoById(store.currentTrack.youtubeVideoId);
 
+    if (forcePlayTimeoutRef.current) {
+      clearTimeout(forcePlayTimeoutRef.current);
+    }
     forcePlayTimeoutRef.current = setTimeout(() => {
       const s = usePlayerStore.getState();
       if (s.isPlaying && s.playbackState !== "playing" && playerRef.current) {
         playerRef.current.playVideo();
       }
-    }, 1500);
+    }, FORCE_PLAY_DELAY_MS);
   }
 
   // --- Effects ---

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { type YouTubePlayer } from "@/lib/youtube";
 
+const SYNC_INTERVAL_MS = 250;
+
 export interface UsePlayerSyncCallbacks {
   setProgress: (seconds: number) => void;
   setDuration: (seconds: number) => void;
@@ -53,7 +55,7 @@ export function usePlayerSync(
       if (Number.isFinite(progressValue)) {
         callbacksRef.current.setProgress(progressValue);
       }
-    }, 250);
+    }, SYNC_INTERVAL_MS);
   }, [playerRef]);
 
   // Auto-cleanup on unmount

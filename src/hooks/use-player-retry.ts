@@ -8,7 +8,7 @@ const DEFAULT_DELAY_MS = 900;
 export interface UsePlayerRetryOptions {
   maxAttempts?: number;
   delayMs?: number;
-  onRetriesExhausted: (trackKey: string) => void;
+  onRetriesExhausted?: (trackKey: string) => void;
 }
 
 export interface UsePlayerRetryReturn {
@@ -50,7 +50,7 @@ export function usePlayerRetry(
         optionsRef.current;
 
       if (attemptRef.current >= maxAttempts) {
-        optionsRef.current.onRetriesExhausted(trackKey);
+        optionsRef.current.onRetriesExhausted?.(trackKey);
         return false;
       }
 
