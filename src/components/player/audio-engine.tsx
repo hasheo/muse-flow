@@ -1,298 +1,208 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { usePlayerStore } from "@/store/player-store";
-import { loadYouTubeApi, type YouTubePlayer } from "@/lib/youtube";
+import { type YouTubePlayerEvent } from "@/lib/youtube";
+import { useYouTubePlayer } from "@/hooks/use-youtube-player";
+import { usePlayerSync } from "@/hooks/use-player-sync";
+import { usePlayerRetry } from "@/hooks/use-player-retry";
+import { useLoadingTimeout } from "@/hooks/use-loading-timeout";
+
+const PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1, rel: 0 };
+const FORCE_PLAY_DELAY_MS = 1500;
 
 export function AudioEngine() {
-  const MAX_RETRY_ATTEMPTS = 2;
-  const RETRY_DELAY_MS = 900;
-
-  const youtubeContainerRef = useRef<HTMLDivElement | null>(null);
-  const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
-  const youtubeReadyRef = useRef(false);
-  const youtubeSyncRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const retryAttemptRef = useRef(0);
-  const retryTrackKeyRef = useRef<string>("");
-  const trackLoadedByEffectRef = useRef(false);
-  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const currentTrack = usePlayerStore((state) => state.currentTrack);
-  const isPlaying = usePlayerStore((state) => state.isPlaying);
-  const volume = usePlayerStore((state) => state.volume);
-  const setPlaybackState = usePlayerStore((state) => state.setPlaybackState);
-  const progress = usePlayerStore((state) => state.progress);
-  const setAnalyserData = usePlayerStore((state) => state.setAnalyserData);
-
-  const clearLoadingTimeout = useCallback(() => {
-    if (loadingTimeoutRef.current) {
-      clearTimeout(loadingTimeoutRef.current);
-      loadingTimeoutRef.current = null;
-    }
-  }, []);
-
-  const startLoadingTimeout = useCallback(() => {
-    clearLoadingTimeout();
-    loadingTimeoutRef.current = setTimeout(() => {
-      const store = usePlayerStore.getState();
-      const player = youtubePlayerRef.current;
-      if (!player || !store.isPlaying || !store.currentTrack) return;
-      if (store.playbackState !== "loading") return;
-
-      // Player stuck in loading — retry with loadVideoById then playVideo
-      player.loadVideoById(store.currentTrack.youtubeVideoId);
-      setTimeout(() => {
-        const s = usePlayerStore.getState();
-        if (s.isPlaying && s.playbackState !== "playing" && youtubePlayerRef.current) {
-          youtubePlayerRef.current.playVideo();
-        }
-      }, 1500);
-    }, 4000);
-  }, [clearLoadingTimeout]);
-
-  const clearYoutubeSync = useCallback(() => {
-    if (youtubeSyncRef.current) {
-      clearInterval(youtubeSyncRef.current);
-      youtubeSyncRef.current = null;
-    }
-  }, []);
-
-  const clearRetryTimer = useCallback(() => {
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-  }, []);
-
-  const resetRetryState = useCallback(
-    (trackKey?: string) => {
-      clearRetryTimer();
-      retryAttemptRef.current = 0;
-      if (trackKey) {
-        retryTrackKeyRef.current = trackKey;
-      }
-    },
-    [clearRetryTimer],
+  const trackLoadedRef = useRef(false);
+  const forcePlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
   );
 
-  const scheduleRetry = useCallback(
-    (trackKey: string, retryFn: () => void) => {
-      if (!trackKey) {
-        return false;
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const volume = usePlayerStore((s) => s.volume);
+  const progress = usePlayerStore((s) => s.progress);
+  const playbackState = usePlayerStore((s) => s.playbackState);
+
+  // --- Hooks (callbacks stored in refs by each hook, so hoisting is safe) ---
+
+  const { playerRef, readyRef, containerRef } = useYouTubePlayer({
+    onReady: handleReady,
+    onStateChange: handleStateChange,
+    onError: handleError,
+    playerVars: PLAYER_VARS,
+  });
+
+  const { startSync, stopSync } = usePlayerSync(playerRef, {
+    setProgress: (s: number) => usePlayerStore.getState().setProgress(s),
+    setDuration: (s: number) => usePlayerStore.getState().setDuration(s),
+  });
+
+  const { scheduleRetry, resetRetry } = usePlayerRetry({});
+
+  useLoadingTimeout(playbackState, {
+    onStuck: handleLoadingStuck,
+  });
+
+  // --- Callbacks ---
+
+  function handleReady() {
+    const store = usePlayerStore.getState();
+    const player = playerRef.current;
+
+    player?.setVolume(Math.round(store.volume * 100));
+
+    if (store.currentTrack && player) {
+      resetRetry(`youtube:${store.currentTrack.id}`);
+      if (store.isPlaying) {
+        store.setPlaybackState("loading");
+        player.loadVideoById(store.currentTrack.youtubeVideoId);
+        startSync();
+      } else {
+        store.setPlaybackState("paused");
+        player.cueVideoById(store.currentTrack.youtubeVideoId);
       }
+    }
+  }
 
-      if (retryTrackKeyRef.current !== trackKey) {
-        retryTrackKeyRef.current = trackKey;
-        retryAttemptRef.current = 0;
-      }
+  function handleStateChange(event: YouTubePlayerEvent) {
+    const store = usePlayerStore.getState();
 
-      if (retryAttemptRef.current >= MAX_RETRY_ATTEMPTS) {
-        return false;
-      }
-
-      retryAttemptRef.current += 1;
-      clearRetryTimer();
-      retryTimeoutRef.current = setTimeout(() => {
-        retryFn();
-      }, RETRY_DELAY_MS);
-
-      return true;
-    },
-    [MAX_RETRY_ATTEMPTS, RETRY_DELAY_MS, clearRetryTimer],
-  );
-
-  const startYoutubeSync = useCallback(() => {
-    const player = youtubePlayerRef.current;
-    if (!player) {
+    // PLAYING (1)
+    if (event.data === 1) {
+      store.setPlaying(true);
+      store.setPlaybackState("playing");
+      store.setPlaybackError(null);
+      resetRetry();
+      startSync();
       return;
     }
 
-    clearYoutubeSync();
-    youtubeSyncRef.current = setInterval(() => {
-      const store = usePlayerStore.getState();
-      const durationValue = player.getDuration();
-      const progressValue = player.getCurrentTime();
-      if (Number.isFinite(durationValue)) {
-        store.setDuration(durationValue);
-      }
-      if (Number.isFinite(progressValue)) {
-        store.setProgress(progressValue);
-      }
-    }, 250);
-  }, [clearYoutubeSync]);
-
-  useEffect(() => {
-    if (youtubePlayerRef.current && youtubeReadyRef.current) {
-      youtubePlayerRef.current.setVolume(Math.round(volume * 100));
+    // PAUSED (2)
+    if (event.data === 2) {
+      store.setPlaying(false);
+      store.setPlaybackState(store.currentTrack ? "paused" : "idle");
+      stopSync();
+      return;
     }
-  }, [volume]);
 
-  useEffect(() => {
-    let cancelled = false;
+    // BUFFERING (3) or UNSTARTED (-1)
+    if (event.data === 3 || event.data === -1) {
+      if (store.currentTrack) {
+        store.setPlaybackState("loading");
+      }
+      return;
+    }
 
-    const setupPlayer = async () => {
-      if (!youtubeContainerRef.current || youtubePlayerRef.current) {
+    // ENDED (0)
+    if (event.data === 0) {
+      store.setPlaying(false);
+      store.setPlaybackState("paused");
+      stopSync();
+      store.next();
+    }
+  }
+
+  function handleError() {
+    const store = usePlayerStore.getState();
+    const track = store.currentTrack;
+    const player = playerRef.current;
+
+    if (!track || !player) {
+      return;
+    }
+
+    const trackKey = `youtube:${track.id}`;
+    const didSchedule = scheduleRetry(trackKey, () => {
+      if (!usePlayerStore.getState().isPlaying) {
         return;
       }
+      usePlayerStore.getState().setPlaybackState("loading");
+      player.loadVideoById(track.youtubeVideoId);
+      startSync();
+    });
 
-      const yt = await loadYouTubeApi();
-      if (cancelled || !youtubeContainerRef.current || youtubePlayerRef.current) {
-        return;
+    if (!didSchedule) {
+      store.setPlaying(false);
+      store.setPlaybackState("error");
+      store.setPlaybackError(
+        "Failed to play YouTube stream. Try playing again.",
+      );
+      stopSync();
+    } else {
+      store.setPlaybackState("loading");
+      store.setPlaybackError("Connection interrupted, retrying playback...");
+    }
+  }
+
+  function handleLoadingStuck() {
+    const store = usePlayerStore.getState();
+    const player = playerRef.current;
+    if (!player || !store.isPlaying || !store.currentTrack) return;
+
+    player.loadVideoById(store.currentTrack.youtubeVideoId);
+
+    if (forcePlayTimeoutRef.current) {
+      clearTimeout(forcePlayTimeoutRef.current);
+    }
+    forcePlayTimeoutRef.current = setTimeout(() => {
+      const s = usePlayerStore.getState();
+      if (s.isPlaying && s.playbackState !== "playing" && playerRef.current) {
+        playerRef.current.playVideo();
       }
+    }, FORCE_PLAY_DELAY_MS);
+  }
 
-      youtubePlayerRef.current = new yt.Player(youtubeContainerRef.current, {
-        height: "0",
-        width: "0",
-        playerVars: {
-          autoplay: 0,
-          controls: 0,
-          playsinline: 1,
-          rel: 0,
-        },
-        events: {
-          onReady: () => {
-            youtubeReadyRef.current = true;
-            const store = usePlayerStore.getState();
-            const player = youtubePlayerRef.current;
+  // --- Effects ---
 
-            player?.setVolume(Math.round(store.volume * 100));
-
-            if (store.currentTrack && player) {
-              resetRetryState(`youtube:${store.currentTrack.id}`);
-              if (store.isPlaying) {
-                store.setPlaybackState("loading");
-                player.loadVideoById(store.currentTrack.youtubeVideoId);
-                startYoutubeSync();
-                startLoadingTimeout();
-              } else {
-                store.setPlaybackState("paused");
-                player.cueVideoById(store.currentTrack.youtubeVideoId);
-              }
-            }
-          },
-          onStateChange: (event) => {
-            const store = usePlayerStore.getState();
-
-            if (event.data === yt.PlayerState.PLAYING) {
-              clearLoadingTimeout();
-              store.setPlaying(true);
-              store.setPlaybackState("playing");
-              store.setPlaybackError(null);
-              resetRetryState();
-              startYoutubeSync();
-              return;
-            }
-
-            if (event.data === yt.PlayerState.PAUSED) {
-              store.setPlaying(false);
-              store.setPlaybackState(store.currentTrack ? "paused" : "idle");
-              clearYoutubeSync();
-              return;
-            }
-
-            if (event.data === yt.PlayerState.BUFFERING || event.data === yt.PlayerState.UNSTARTED) {
-              if (store.currentTrack) {
-                store.setPlaybackState("loading");
-              }
-              return;
-            }
-
-            if (event.data === yt.PlayerState.ENDED) {
-              store.setPlaying(false);
-              store.setPlaybackState("paused");
-              clearYoutubeSync();
-              store.next();
-            }
-          },
-          onError: () => {
-            const store = usePlayerStore.getState();
-            const track = store.currentTrack;
-            const player = youtubePlayerRef.current;
-
-            if (!track || !player) {
-              return;
-            }
-
-            const trackKey = `youtube:${track.id}`;
-            const didSchedule = scheduleRetry(trackKey, () => {
-              if (!usePlayerStore.getState().isPlaying) {
-                return;
-              }
-              usePlayerStore.getState().setPlaybackState("loading");
-              player.loadVideoById(track.youtubeVideoId);
-              startYoutubeSync();
-            });
-
-            if (!didSchedule) {
-              store.setPlaying(false);
-              store.setPlaybackState("error");
-              store.setPlaybackError("Failed to play YouTube stream. Try playing again.");
-              clearYoutubeSync();
-            } else {
-              store.setPlaybackState("loading");
-              store.setPlaybackError("Connection interrupted, retrying playback...");
-            }
-          },
-        },
-      });
-    };
-
-    void setupPlayer();
-
-    return () => {
-      cancelled = true;
-      clearYoutubeSync();
-      clearRetryTimer();
-      clearLoadingTimeout();
-      youtubePlayerRef.current?.destroy();
-      youtubePlayerRef.current = null;
-      youtubeReadyRef.current = false;
-    };
-  }, [clearRetryTimer, clearYoutubeSync, resetRetryState, scheduleRetry, startYoutubeSync]);
-
+  // Volume changes
   useEffect(() => {
-    const youtubePlayer = youtubePlayerRef.current;
+    if (playerRef.current && readyRef.current) {
+      playerRef.current.setVolume(Math.round(volume * 100));
+    }
+  }, [volume, playerRef, readyRef]);
+
+  // Track changes
+  useEffect(() => {
+    const player = playerRef.current;
     const store = usePlayerStore.getState();
 
     if (!currentTrack) {
-      resetRetryState();
-      clearYoutubeSync();
-      youtubePlayer?.stopVideo();
+      resetRetry();
+      stopSync();
+      player?.stopVideo();
       store.setPlaybackState("idle");
       store.setPlaybackError(null);
       return;
     }
 
     const trackKey = `youtube:${currentTrack.id}`;
-    resetRetryState(trackKey);
+    resetRetry(trackKey);
     store.setPlaybackError(null);
-    setAnalyserData(new Uint8Array(64));
-    if (!youtubePlayer || !youtubeReadyRef.current) {
+    store.setAnalyserData(new Uint8Array(64));
+
+    if (!player || !readyRef.current) {
       if (store.isPlaying) {
         store.setPlaybackState("loading");
       }
       return;
     }
 
-    trackLoadedByEffectRef.current = true;
+    trackLoadedRef.current = true;
     if (store.isPlaying) {
       store.setPlaybackState("loading");
-      youtubePlayer.loadVideoById(currentTrack.youtubeVideoId);
-      startYoutubeSync();
-      startLoadingTimeout();
+      player.loadVideoById(currentTrack.youtubeVideoId);
+      startSync();
     } else {
-      clearLoadingTimeout();
       store.setPlaybackState("paused");
-      youtubePlayer.cueVideoById(currentTrack.youtubeVideoId);
+      player.cueVideoById(currentTrack.youtubeVideoId);
     }
-  }, [clearLoadingTimeout, clearYoutubeSync, currentTrack, resetRetryState, setAnalyserData, startLoadingTimeout, startYoutubeSync]);
+  }, [currentTrack, playerRef, readyRef, resetRetry, startSync, stopSync]);
 
+  // Play/pause toggle
   useEffect(() => {
-    // Skip if the currentTrack effect already handled loading/cueing in this render cycle
-    if (trackLoadedByEffectRef.current) {
-      trackLoadedByEffectRef.current = false;
+    if (trackLoadedRef.current) {
+      trackLoadedRef.current = false;
       return;
     }
 
@@ -300,37 +210,32 @@ export function AudioEngine() {
       return;
     }
 
-    if (!youtubePlayerRef.current || !youtubeReadyRef.current) {
+    if (!playerRef.current || !readyRef.current) {
       if (isPlaying) {
-        setPlaybackState("loading");
+        usePlayerStore.getState().setPlaybackState("loading");
       }
       return;
     }
 
     if (isPlaying) {
-      setPlaybackState("loading");
-      youtubePlayerRef.current.playVideo();
-      startYoutubeSync();
+      usePlayerStore.getState().setPlaybackState("loading");
+      playerRef.current.playVideo();
+      startSync();
     } else {
-      youtubePlayerRef.current.pauseVideo();
-      clearYoutubeSync();
-      setPlaybackState("paused");
+      playerRef.current.pauseVideo();
+      stopSync();
+      usePlayerStore.getState().setPlaybackState("paused");
     }
-  }, [
-    clearYoutubeSync,
-    currentTrack,
-    isPlaying,
-    setPlaybackState,
-    startYoutubeSync,
-  ]);
+  }, [currentTrack, isPlaying, playerRef, readyRef, startSync, stopSync]);
 
+  // Seek detection
   useEffect(() => {
     if (!currentTrack) {
       return;
     }
 
-    const player = youtubePlayerRef.current;
-    if (!player || !youtubeReadyRef.current) {
+    const player = playerRef.current;
+    if (!player || !readyRef.current) {
       return;
     }
 
@@ -338,11 +243,16 @@ export function AudioEngine() {
     if (Math.abs(currentTime - progress) > 1) {
       player.seekTo(progress, true);
     }
-  }, [currentTrack, progress]);
+  }, [currentTrack, progress, playerRef, readyRef]);
 
-  return (
-    <>
-      <div aria-hidden className="hidden" ref={youtubeContainerRef} />
-    </>
-  );
+  // Cleanup force-play timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (forcePlayTimeoutRef.current) {
+        clearTimeout(forcePlayTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  return <div aria-hidden className="hidden" ref={containerRef} />;
 }
