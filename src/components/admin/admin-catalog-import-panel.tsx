@@ -57,6 +57,8 @@ async function importBatch(
     duration: number;
     cover: string;
     category: string | null;
+    country: string | null;
+    year: number | null;
   }>,
   enrich: boolean,
 ): Promise<BatchResult[]> {
@@ -77,6 +79,8 @@ export function AdminCatalogImportPanel({ onClose }: { onClose: () => void }) {
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkCountry, setBulkCountry] = useState("");
+  const [bulkYear, setBulkYear] = useState("");
   const [enrich, setEnrich] = useState(true);
   const [progress, setProgress] = useState<{
     total: number;
@@ -138,6 +142,9 @@ export function AdminCatalogImportPanel({ onClose }: { onClose: () => void }) {
     setProgress({ total: queue.length, done: 0, created: 0, duplicate: 0, error: 0 });
 
     const category = bulkCategory.trim() || null;
+    const country = bulkCountry.trim() || null;
+    const yearInput = bulkYear.trim();
+    const year = yearInput && /^\d{4}$/.test(yearInput) ? Number(yearInput) : null;
 
     try {
       for (let i = 0; i < queue.length; i += BATCH_SIZE) {
@@ -149,6 +156,8 @@ export function AdminCatalogImportPanel({ onClose }: { onClose: () => void }) {
           duration: t.duration,
           cover: t.cover,
           category,
+          country,
+          year,
         }));
 
         const results = await importBatch(chunk, enrich);
@@ -239,18 +248,47 @@ export function AdminCatalogImportPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-                Category (applied to every imported track)
-              </span>
-              <Input
-                onChange={(event) => setBulkCategory(event.target.value)}
-                placeholder="e.g. Anime OST"
-                value={bulkCategory}
-              />
-            </label>
-            <label className="flex items-end gap-2 pb-0.5">
+          <div className="space-y-2 rounded-lg border border-white/10 bg-black/20 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">
+              Bulk values (applied to every imported track — leave blank for
+              auto-enrichment to fill per track)
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  Category
+                </span>
+                <Input
+                  onChange={(event) => setBulkCategory(event.target.value)}
+                  placeholder="e.g. Anime OST"
+                  value={bulkCategory}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  Country
+                </span>
+                <Input
+                  onChange={(event) => setBulkCountry(event.target.value)}
+                  placeholder="e.g. Japan"
+                  value={bulkCountry}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  Year
+                </span>
+                <Input
+                  inputMode="numeric"
+                  onChange={(event) =>
+                    setBulkYear(event.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                  placeholder="e.g. 2010"
+                  value={bulkYear}
+                />
+              </label>
+            </div>
+            <label className="flex items-center gap-2 pt-1">
               <input
                 checked={enrich}
                 className="h-4 w-4 rounded border-white/20 bg-black/40"
@@ -259,7 +297,7 @@ export function AdminCatalogImportPanel({ onClose }: { onClose: () => void }) {
               />
               <span className="flex items-center gap-1.5 text-xs text-white/70">
                 <Sparkles className="h-3.5 w-3.5 text-lime-300" />
-                Auto-enrich year / country / genre (slower)
+                Auto-enrich blank fields + genre (slower)
               </span>
             </label>
           </div>

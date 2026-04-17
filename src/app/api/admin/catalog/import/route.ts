@@ -18,6 +18,8 @@ const trackInputSchema = z.object({
   cover: z.string().trim().url().max(1000),
   youtubeVideoId: z.string().trim().min(5).max(32),
   category: z.string().trim().max(60).optional().nullable(),
+  country: z.string().trim().max(60).optional().nullable(),
+  year: z.number().int().min(1900).max(2100).optional().nullable(),
 });
 
 const batchSchema = z
@@ -95,16 +97,18 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    let year: number | null = null;
-    let country: string | null = null;
+    // Explicit bulk overrides from the admin always win. Only fields left
+    // blank fall through to enrichment.
+    let year: number | null = track.year ?? null;
+    let country: string | null = normalizeNullable(track.country);
     let genre: string | null = null;
     let musicbrainzId: string | null = null;
 
     if (enrich) {
       try {
         const enrichment = await enrichTrackMetadata(track.title, track.artist);
-        year = enrichment.year;
-        country = enrichment.country;
+        if (year === null) year = enrichment.year;
+        if (country === null) country = enrichment.country;
         genre = enrichment.genre;
         musicbrainzId = enrichment.musicbrainzId;
       } catch {
