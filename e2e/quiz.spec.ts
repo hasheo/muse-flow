@@ -25,17 +25,31 @@ const mockYouTubeApi = () => {
 
 test.describe("Quiz list page", () => {
   test("authenticated user can reach quiz page", async ({ page }) => {
-    await page.goto("/app/quiz");
-    await expect(page).toHaveURL(/\/app\/quiz/);
+    await page.goto("/quiz");
+    await expect(page).toHaveURL(/\/quiz$/);
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(/application error/i)).not.toBeVisible();
     await expect(page.getByText(/something went wrong/i)).not.toBeVisible();
   });
 
+  test("root redirects to /quiz", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/quiz$/, { timeout: 8_000 });
+  });
+
+  test("quiz shell has no dashboard sidebar or player bar", async ({ page }) => {
+    await page.goto("/quiz");
+    await page.waitForLoadState("networkidle");
+    // The quiz layout must not render the dashboard Sidebar (<aside>) or
+    // PlayerBar — those belong only to the /player and /library shell.
+    await expect(page.locator("aside")).toHaveCount(0);
+    await expect(page.getByRole("complementary")).toHaveCount(0);
+  });
+
   test("redirects unauthenticated users to sign-in", async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await ctx.newPage();
-    await page.goto("/app/quiz");
+    await page.goto("/quiz");
     await expect(page).toHaveURL(/sign-in/, { timeout: 8_000 });
     await ctx.close();
   });
@@ -46,7 +60,7 @@ test.describe("Quiz play page", () => {
     await page.addInitScript(mockYouTubeApi);
 
     // Navigate to quiz list — if there's a quiz playlist we'll enter it
-    await page.goto("/app/quiz");
+    await page.goto("/quiz");
     await page.waitForLoadState("networkidle");
 
     const quizEntryLinks = page
@@ -95,7 +109,7 @@ test.describe("Quiz play page", () => {
       };
     });
 
-    await page.goto("/app/quiz");
+    await page.goto("/quiz");
     await page.waitForLoadState("networkidle");
 
     const quizEntryLinks = page.getByRole("link").filter({ hasNotText: /library|settings/i });

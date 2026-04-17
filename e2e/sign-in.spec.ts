@@ -28,11 +28,11 @@ test.describe("Sign-in page", () => {
     await expect(page.getByText(/invalid email/i)).toBeVisible({ timeout: 3_000 });
   });
 
-  test("redirects to /app on successful sign-in", async ({ page }) => {
+  test("redirects to /quiz on successful sign-in", async ({ page }) => {
     await page.goto("/sign-in");
     await page.getByPlaceholder("Email").fill(process.env.E2E_EMAIL ?? "demo@music.dev");
     await page.getByPlaceholder("Password").fill(process.env.E2E_PASSWORD ?? "password123");
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page).toHaveURL(/\/app/, { timeout: 10_000 });
+    await expect(page).toHaveURL(/\/quiz/, { timeout: 10_000 });
   });
 });

@@ -16,6 +16,6 @@ setup("authenticate", async ({ page }) => {
   await page.getByPlaceholder("Password").fill(password);
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page).toHaveURL(/\/app/, { timeout: 10_000 });
+  await expect(page).toHaveURL(/\/quiz/, { timeout: 10_000 });
   await page.context().storageState({ path: authFile });
 });
