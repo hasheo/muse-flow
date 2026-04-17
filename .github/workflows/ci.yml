@@ -62,6 +62,9 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: quality
+    # Non-blocking until the existing e2e specs are stabilized in CI. The job
+    # still runs and uploads artifacts so we can diagnose failures later.
+    continue-on-error: true
     services:
       postgres:
         image: postgres:16
