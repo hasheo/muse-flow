@@ -2,9 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
-import { Loader2, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { ListPlus, Loader2, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AdminCatalogImportPanel } from "@/components/admin/admin-catalog-import-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -142,6 +143,7 @@ export function AdminCatalogView() {
   const [searchFilter, setSearchFilter] = useState("");
   const [debouncedFilter, setDebouncedFilter] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedFilter(searchFilter), 200);
@@ -174,13 +176,30 @@ export function AdminCatalogView() {
             value={searchFilter}
           />
         </div>
-        <Button onClick={() => setIsAddOpen(true)} type="button">
+        <Button
+          onClick={() => {
+            setIsImportOpen(true);
+            setIsAddOpen(false);
+          }}
+          type="button"
+          variant="ghost"
+        >
+          <ListPlus className="mr-1 h-4 w-4" /> Import playlist
+        </Button>
+        <Button
+          onClick={() => {
+            setIsAddOpen(true);
+            setIsImportOpen(false);
+          }}
+          type="button"
+        >
           <Plus className="mr-1 h-4 w-4" /> Add track
         </Button>
       </div>
 
-      {isAddOpen ? (
-        <AddTrackPanel onClose={() => setIsAddOpen(false)} />
+      {isAddOpen ? <AddTrackPanel onClose={() => setIsAddOpen(false)} /> : null}
+      {isImportOpen ? (
+        <AdminCatalogImportPanel onClose={() => setIsImportOpen(false)} />
       ) : null}
 
       {error ? (
