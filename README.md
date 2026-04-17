@@ -7,7 +7,7 @@ A full-stack music player clone built with:
 - TanStack Query + Zustand
 - NextAuth (credentials)
 - YouTube IFrame Player API
-- Prisma + SQLite
+- Prisma + PostgreSQL
 
 ## Features
 
@@ -26,6 +26,23 @@ A full-stack music player clone built with:
 - Password: `password123`
 
 ## Setup
+
+### 1. Start PostgreSQL
+
+The app is configured for PostgreSQL (see `prisma/schema.prisma`). The quickest way to run one locally:
+
+```bash
+docker run --name museflow-db \
+  -e POSTGRES_USER=museflow \
+  -e POSTGRES_PASSWORD=museflow \
+  -e POSTGRES_DB=museflow \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+Then copy `.env.example` to `.env` and update `DATABASE_URL` to match.
+
+### 2. Install, migrate, seed, run
 
 ```bash
 npm install

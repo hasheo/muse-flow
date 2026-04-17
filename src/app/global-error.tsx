@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+
+import { logClientError } from "@/lib/log-client-error";
+
 export default function GlobalError({
   error,
   reset,
@@ -7,6 +11,10 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    logClientError("global", error);
+  }, [error]);
+
   return (
     <html lang="en">
       <body className="grid min-h-screen place-items-center bg-[#04030c] text-white">

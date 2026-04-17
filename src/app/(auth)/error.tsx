@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { ErrorState } from "@/components/ui/error-state";
+import { logClientError } from "@/lib/log-client-error";
 
 export default function AuthError({
   error,
@@ -11,6 +13,10 @@ export default function AuthError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    logClientError("auth", error);
+  }, [error]);
+
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden px-4">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(156,255,67,0.25),transparent_40%),radial-gradient(circle_at_90%_20%,rgba(59,130,246,0.25),transparent_45%),linear-gradient(180deg,#04030c_0%,#111827_100%)]" />
