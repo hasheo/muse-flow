@@ -67,6 +67,14 @@ describe("env validation", () => {
       await expect(loadEnvModule()).rejects.toThrow(/https:\/\//);
     });
 
+    it("allows http NEXTAUTH_URL when the host is loopback (localhost / 127.0.0.1)", async () => {
+      setEnv({ NEXTAUTH_URL: "http://localhost:3000" });
+      await expect(loadEnvModule()).resolves.toBeDefined();
+
+      setEnv({ NEXTAUTH_URL: "http://127.0.0.1:3000" });
+      await expect(loadEnvModule()).resolves.toBeDefined();
+    });
+
     it("rejects a missing NEXTAUTH_SECRET", async () => {
       setEnv({ NEXTAUTH_SECRET: undefined });
       await expect(loadEnvModule()).rejects.toThrow(/NEXTAUTH_SECRET/);

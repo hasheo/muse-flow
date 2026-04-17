@@ -78,14 +78,29 @@ function formatIssues(issues: z.ZodIssue[]): string {
     .join("\n");
 }
 
+// Loopback hosts are allowed over http even in production so that
+// prod-mode local runs (next start) and CI e2e smoke tests work
+// without TLS termination. Real public hostnames must use https.
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
+
 function validateEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
 
   if (parsed.success) {
-    // Production-only cross-field check: HTTPS for NEXTAUTH_URL.
-    if (isProduction && !parsed.data.NEXTAUTH_URL.startsWith("https://")) {
+    if (
+      isProduction &&
+      !parsed.data.NEXTAUTH_URL.startsWith("https://") &&
+      !isLoopbackUrl(parsed.data.NEXTAUTH_URL)
+    ) {
       throw new Error(
-        `Invalid environment in production:\n  - NEXTAUTH_URL: must use https:// (got ${parsed.data.NEXTAUTH_URL})`,
+        `Invalid environment in production:\n  - NEXTAUTH_URL: must use https:// for non-loopback hosts (got ${parsed.data.NEXTAUTH_URL})`,
       );
     }
     return parsed.data;
