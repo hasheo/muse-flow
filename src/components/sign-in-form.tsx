@@ -45,7 +45,7 @@ export function SignInForm() {
     setError(null);
     setIsLoading(true);
     try {
-      await signIn("google", { callbackUrl: "/app" });
+      await signIn("google", { callbackUrl: "/quiz" });
     } catch {
       setError("Something went wrong. Please try again.");
       setIsLoading(false);
@@ -78,7 +78,7 @@ export function SignInForm() {
         email,
         password,
         redirect: false,
-        callbackUrl: "/app",
+        callbackUrl: "/quiz",
       });
 
       if (result?.error) {

@@ -1,21 +1,20 @@
 "use client";
 
-import { Gamepad2, Headphones, Home, Library, Search } from "lucide-react";
+import { Gamepad2, Headphones, Library, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
 type NavItem =
-  | { href: string; label: string; icon: typeof Home; isSearch?: false; match: (p: string) => boolean }
+  | { href: string; label: string; icon: typeof Headphones; isSearch?: false; match: (p: string) => boolean }
   | { href: string; label: string; icon: typeof Search; isSearch: true; match: (p: string) => boolean };
 
 const navItems: NavItem[] = [
-  { href: "/app", label: "Home", icon: Home, match: (p) => p === "/app" },
-  { href: "/app?focus=search", label: "Search", icon: Search, isSearch: true, match: () => false },
+  { href: "/quiz", label: "Quiz", icon: Gamepad2, match: (p) => p === "/quiz" || p.startsWith("/quiz/") || p.startsWith("/quiz-companion") },
+  { href: "/player", label: "Player", icon: Headphones, match: (p) => p === "/player" },
+  { href: "/player?focus=search", label: "Search", icon: Search, isSearch: true, match: () => false },
   { href: "/library", label: "Library", icon: Library, match: (p) => p.startsWith("/library") },
-  { href: "/quiz", label: "Quiz", icon: Gamepad2, match: (p) => p === "/quiz" || p.startsWith("/quiz/") },
-  { href: "/quiz-companion", label: "Companion", icon: Headphones, match: (p) => p.startsWith("/quiz-companion") },
 ];
 
 export function MobileNav() {
@@ -35,8 +34,8 @@ export function MobileNav() {
                 key={item.label}
                 className="flex flex-1 flex-col items-center gap-1 py-2.5 text-white/50 transition active:text-white"
                 onClick={() => {
-                  if (pathname !== "/app") {
-                    router.push("/app?focus=search");
+                  if (pathname !== "/player") {
+                    router.push("/player?focus=search");
                   } else {
                     window.dispatchEvent(new CustomEvent("focus-search"));
                   }

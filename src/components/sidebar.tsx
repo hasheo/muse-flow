@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Gamepad2, Headphones, Home, Library, Search } from "lucide-react";
+import { ArrowLeft, BarChart3, Headphones, Library, Search } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -39,29 +39,41 @@ export function Sidebar() {
 
   return (
     <aside className="hidden w-72 shrink-0 border-r border-white/10 bg-black/30 p-4 lg:block">
-      <div className="mb-8 flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3">
         <div className="grid h-10 w-10 place-items-center rounded-xl bg-lime-400 font-bold text-black">
           M
         </div>
         <p className="text-lg font-semibold tracking-tight">MuseFlow</p>
       </div>
+
+      <Link
+        className="mb-6 flex items-center gap-2 rounded-xl border border-lime-400/40 bg-lime-400/10 px-3 py-2.5 text-sm font-semibold text-lime-200 transition hover:border-lime-400/70 hover:bg-lime-400/15 hover:text-white"
+        href="/quiz"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Quiz
+      </Link>
+
+      <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+        Player
+      </p>
       <nav className="space-y-2 text-sm">
         <Link
           className={cn(
             "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white/70 transition hover:bg-white/10 hover:text-white",
-            pathname === "/app" && "bg-white/10 text-white",
+            pathname === "/player" && "bg-white/10 text-white",
           )}
-          href="/app"
+          href="/player"
         >
-          <Home className="h-4 w-4" />
-          Home
+          <Headphones className="h-4 w-4" />
+          Player
         </Link>
 
         <button
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white/70 transition hover:bg-white/10 hover:text-white"
           onClick={() => {
-            if (pathname !== "/app") {
-              router.push("/app?focus=search");
+            if (pathname !== "/player") {
+              router.push("/player?focus=search");
               return;
             }
             window.dispatchEvent(new CustomEvent("focus-search"));
@@ -81,28 +93,6 @@ export function Sidebar() {
         >
           <Library className="h-4 w-4" />
           Your Library
-        </Link>
-
-        <Link
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white/70 transition hover:bg-white/10 hover:text-white",
-            (pathname === "/quiz" || pathname.startsWith("/quiz/")) && "bg-white/10 text-white",
-          )}
-          href="/quiz"
-        >
-          <Gamepad2 className="h-4 w-4" />
-          Quiz
-        </Link>
-
-        <Link
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white/70 transition hover:bg-white/10 hover:text-white",
-            pathname.startsWith("/quiz-companion") && "bg-white/10 text-white",
-          )}
-          href="/quiz-companion"
-        >
-          <Headphones className="h-4 w-4" />
-          Quiz Companion
         </Link>
 
         <div

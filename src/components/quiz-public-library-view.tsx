@@ -3,13 +3,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
-import { Gamepad2, Search } from "lucide-react";
+import { Gamepad2, Play, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import { SkeletonPlaylistGrid } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { coerceQuizAnswerMode, getQuizAnswerModeLabel } from "@/lib/quiz-answer-mode";
 import {
   coerceQuizDifficulty,
@@ -61,6 +61,42 @@ async function fetchPublicQuizPlaylists() {
   }
 
   return payload.playlists ?? [];
+}
+
+function QuizCard({ playlist }: { playlist: PublicQuizPlaylist }) {
+  return (
+    <Link
+      className="group relative flex w-56 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/40 transition hover:-translate-y-1 hover:border-lime-300/50 sm:w-64"
+      href={`/quiz/play/${playlist.id}`}
+    >
+      <div className="relative h-36 w-full overflow-hidden sm:h-40">
+        <Image
+          alt={playlist.name}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
+          height={176}
+          src={playlist.cover}
+          unoptimized
+          width={256}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <div className="absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-full bg-lime-400 text-black opacity-0 shadow-lg shadow-lime-500/40 transition group-hover:opacity-100">
+          <Play className="h-4 w-4 fill-current" />
+        </div>
+        <span className="absolute bottom-2 left-2 rounded-full border border-lime-300/40 bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-lime-200 backdrop-blur">
+          {getQuizDifficultyLabel(coerceQuizDifficulty(playlist.difficulty))}
+        </span>
+      </div>
+      <div className="flex flex-1 flex-col gap-1 p-3">
+        <p className="truncate text-sm font-black text-white">{playlist.name}</p>
+        <p className="truncate text-xs text-white/55">by {playlist.ownerName}</p>
+        <div className="mt-auto flex items-center gap-2 pt-2 text-[10px] font-semibold uppercase tracking-wider text-white/50">
+          <span>{playlist.trackCount} tracks</span>
+          <span>•</span>
+          <span>{getQuizAnswerModeLabel(coerceQuizAnswerMode(playlist.answerMode))}</span>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 export function QuizPublicLibraryView() {
@@ -123,7 +159,11 @@ export function QuizPublicLibraryView() {
   }, [difficultyFilter, minTracks, playlists, searchQuery, sortBy]);
 
   if (isLoading) {
-    return <SkeletonPlaylistGrid count={6} />;
+    return (
+      <div className="flex min-h-40 items-center justify-center">
+        <Spinner size="sm" />
+      </div>
+    );
   }
 
   if (error) {
@@ -146,66 +186,66 @@ export function QuizPublicLibraryView() {
   }
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-white/50">Explore Public Quiz</p>
-        <div className="mt-3 grid gap-2 grid-cols-2 lg:grid-cols-4">
-          <Input
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search quiz name or owner..."
-            value={searchQuery}
-          />
-          <select
-            className="h-10 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
-            onChange={(event) => setDifficultyFilter(event.target.value as QuizDifficulty | "all")}
-            value={difficultyFilter}
-          >
-            <option className="text-black" value="all">
-              All difficulties
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          className="h-10 w-full max-w-xs rounded-full border-white/15 bg-white/5 pl-4 text-sm placeholder-white/40"
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search quizzes or owners..."
+          value={searchQuery}
+        />
+        <select
+          className="h-10 rounded-full border border-white/15 bg-white/5 px-4 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
+          onChange={(event) => setDifficultyFilter(event.target.value as QuizDifficulty | "all")}
+          value={difficultyFilter}
+        >
+          <option className="text-black" value="all">
+            All difficulties
+          </option>
+          {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
+            <option className="text-black" key={option.value} value={option.value}>
+              {option.label}
             </option>
-            {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
-              <option className="text-black" key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-10 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
-            onChange={(event) => setMinTracks(Number(event.target.value) as (typeof MIN_TRACK_OPTIONS)[number])}
-            value={minTracks}
-          >
-            {MIN_TRACK_OPTIONS.map((value) => (
-              <option className="text-black" key={value} value={value}>
-                {value === 0 ? "Any track count" : `${value}+ tracks`}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-10 rounded-md border border-white/15 bg-white/5 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
-            onChange={(event) => setSortBy(event.target.value as SortOption)}
-            value={sortBy}
-          >
-            <option className="text-black" value="newest">
-              Newest
+          ))}
+        </select>
+        <select
+          className="h-10 rounded-full border border-white/15 bg-white/5 px-4 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
+          onChange={(event) =>
+            setMinTracks(Number(event.target.value) as (typeof MIN_TRACK_OPTIONS)[number])
+          }
+          value={minTracks}
+        >
+          {MIN_TRACK_OPTIONS.map((value) => (
+            <option className="text-black" key={value} value={value}>
+              {value === 0 ? "Any length" : `${value}+ tracks`}
             </option>
-            <option className="text-black" value="oldest">
-              Oldest
-            </option>
-            <option className="text-black" value="tracks_desc">
-              Most tracks
-            </option>
-            <option className="text-black" value="tracks_asc">
-              Fewest tracks
-            </option>
-            <option className="text-black" value="name_asc">
-              Name A-Z
-            </option>
-            <option className="text-black" value="name_desc">
-              Name Z-A
-            </option>
-          </select>
-        </div>
-      </section>
+          ))}
+        </select>
+        <select
+          className="h-10 rounded-full border border-white/15 bg-white/5 px-4 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70"
+          onChange={(event) => setSortBy(event.target.value as SortOption)}
+          value={sortBy}
+        >
+          <option className="text-black" value="newest">
+            Newest
+          </option>
+          <option className="text-black" value="oldest">
+            Oldest
+          </option>
+          <option className="text-black" value="tracks_desc">
+            Most tracks
+          </option>
+          <option className="text-black" value="tracks_asc">
+            Fewest tracks
+          </option>
+          <option className="text-black" value="name_asc">
+            Name A-Z
+          </option>
+          <option className="text-black" value="name_desc">
+            Name Z-A
+          </option>
+        </select>
+      </div>
 
       {!filteredPlaylists.length ? (
         <EmptyState
@@ -213,41 +253,13 @@ export function QuizPublicLibraryView() {
           icon={<Search />}
           title="No matching quizzes"
         />
-      ) : null}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredPlaylists.map((playlist) => (
-          <Link
-            className="group overflow-hidden rounded-2xl border border-white/10 bg-black/35 transition hover:border-lime-300/50"
-            href={`/quiz/play/${playlist.id}`}
-            key={playlist.id}
-          >
-            <Image
-              alt={playlist.name}
-              className="h-32 w-full object-cover transition duration-300 group-hover:scale-105 sm:h-44"
-              height={176}
-              src={playlist.cover}
-             
-              width={420}
-            />
-            <div className="space-y-2 p-4">
-              <p className="truncate font-semibold text-white">{playlist.name}</p>
-              <p className="truncate text-sm text-white/65">Created by: {playlist.ownerName}</p>
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-lime-300/40 bg-lime-300/10 px-2 py-1 text-xs text-lime-200">
-                  {getQuizDifficultyLabel(coerceQuizDifficulty(playlist.difficulty))}
-                </span>
-                <span className="rounded-full border border-white/20 bg-white/10 px-2 py-1 text-xs text-white/80">
-                  {playlist.trackCount} tracks
-                </span>
-                <span className="rounded-full border border-white/20 bg-white/10 px-2 py-1 text-xs text-white/80">
-                  {getQuizAnswerModeLabel(coerceQuizAnswerMode(playlist.answerMode))}
-                </span>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+      ) : (
+        <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-3 [scrollbar-width:thin]">
+          {filteredPlaylists.map((playlist) => (
+            <QuizCard key={playlist.id} playlist={playlist} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
