@@ -101,6 +101,7 @@ model CatalogTrack {
   country        String?
   category       String?
   genre          String?
+  musicbrainzId  String?
   addedById      String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

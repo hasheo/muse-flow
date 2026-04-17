@@ -24,6 +24,7 @@ const catalogCreateSchema = z
     country: z.string().trim().max(60).nullable().optional(),
     category: z.string().trim().max(60).nullable().optional(),
     genre: z.string().trim().max(60).nullable().optional(),
+    musicbrainzId: z.string().trim().max(64).nullable().optional(),
   })
   .strict();
 
@@ -111,6 +112,7 @@ export async function POST(request: NextRequest) {
         country: normalizeNullable(data.country),
         category: normalizeNullable(data.category),
         genre: normalizeNullable(data.genre),
+        musicbrainzId: normalizeNullable(data.musicbrainzId),
         addedById: auth.context.userId,
       },
     });

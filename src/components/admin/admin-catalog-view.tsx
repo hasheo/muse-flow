@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
-import { Loader2, Plus, Search, Trash2, X } from "lucide-react";
+import { Loader2, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,17 @@ type CatalogTrack = {
   country: string | null;
   category: string | null;
   genre: string | null;
+  musicbrainzId: string | null;
   updatedAt: string;
+};
+
+type EnrichmentResult = {
+  year: number | null;
+  country: string | null;
+  genre: string | null;
+  musicbrainzId: string | null;
+  confidence: number;
+  sources: Array<"musicbrainz" | "discogs">;
 };
 
 type DraftState = {
@@ -35,6 +45,7 @@ type DraftState = {
   country: string;
   category: string;
   genre: string;
+  musicbrainzId: string | null;
 };
 
 const EMPTY_DRAFT: DraftState = {
@@ -46,6 +57,7 @@ const EMPTY_DRAFT: DraftState = {
   country: "",
   category: "",
   genre: "",
+  musicbrainzId: null,
 };
 
 async function fetchCatalog(q: string): Promise<CatalogTrack[]> {
@@ -65,6 +77,17 @@ async function searchYouTube(q: string): Promise<Track[]> {
   return payload.tracks ?? [];
 }
 
+async function enrichMetadata(title: string, artist: string): Promise<EnrichmentResult> {
+  const response = await fetch("/api/admin/catalog/enrich", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, artist }),
+  });
+  const payload = (await response.json()) as { enrichment?: EnrichmentResult; message?: string };
+  if (!response.ok || !payload.enrichment) throw new Error(payload.message || "Enrichment failed");
+  return payload.enrichment;
+}
+
 async function createCatalogTrack(input: {
   title: string;
   artist: string;
@@ -76,6 +99,7 @@ async function createCatalogTrack(input: {
   country: string | null;
   category: string | null;
   genre: string | null;
+  musicbrainzId: string | null;
 }) {
   const response = await fetch("/api/admin/catalog", {
     method: "POST",
@@ -380,6 +404,7 @@ function trackToDraft(track: CatalogTrack): DraftState {
     country: track.country ?? "",
     category: track.category ?? "",
     genre: track.genre ?? "",
+    musicbrainzId: track.musicbrainzId,
   };
 }
 
@@ -389,12 +414,46 @@ function AddTrackPanel({ onClose }: { onClose: () => void }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
+  const [enrichment, setEnrichment] = useState<EnrichmentResult | null>(null);
 
   const { data: results = [], isFetching } = useQuery({
     queryKey: ["admin-catalog-youtube", activeQuery],
     queryFn: () => searchYouTube(activeQuery),
     enabled: activeQuery.trim().length > 0,
   });
+
+  const enrichMutation = useMutation({
+    mutationFn: ({ title, artist }: { title: string; artist: string }) =>
+      enrichMetadata(title, artist),
+    onSuccess: (result) => {
+      setEnrichment(result);
+      setDraft((prev) => ({
+        ...prev,
+        year: prev.year.trim() ? prev.year : result.year ? String(result.year) : prev.year,
+        country: prev.country.trim() ? prev.country : result.country ?? prev.country,
+        genre: prev.genre.trim() ? prev.genre : result.genre ?? prev.genre,
+        musicbrainzId: prev.musicbrainzId ?? result.musicbrainzId,
+      }));
+    },
+    onError: (err: Error) =>
+      toast({ message: `Auto-fill failed: ${err.message}`, variant: "error" }),
+  });
+
+  const selectYouTubeResult = (result: Track) => {
+    setDraft({
+      base: result,
+      title: result.title,
+      artist: result.artist,
+      album: result.album,
+      year: "",
+      country: "",
+      category: "",
+      genre: "",
+      musicbrainzId: null,
+    });
+    setEnrichment(null);
+    enrichMutation.mutate({ title: result.title, artist: result.artist });
+  };
 
   const createMutation = useMutation({
     mutationFn: () => {
@@ -412,11 +471,13 @@ function AddTrackPanel({ onClose }: { onClose: () => void }) {
         country: draft.country.trim() || null,
         category: draft.category.trim() || null,
         genre: draft.genre.trim() || null,
+        musicbrainzId: draft.musicbrainzId,
       });
     },
     onSuccess: () => {
       toast({ message: "Added to catalog", variant: "success" });
       setDraft(EMPTY_DRAFT);
+      setEnrichment(null);
       setSearchTerm("");
       setActiveQuery("");
       queryClient.invalidateQueries({ queryKey: ["admin-catalog"] });
@@ -479,15 +540,7 @@ function AddTrackPanel({ onClose }: { onClose: () => void }) {
                             ? "border-lime-400 bg-white/5"
                             : "border-transparent"
                         }`}
-                        onClick={() =>
-                          setDraft((prev) => ({
-                            ...prev,
-                            base: result,
-                            title: result.title,
-                            artist: result.artist,
-                            album: result.album,
-                          }))
-                        }
+                        onClick={() => selectYouTubeResult(result)}
                         type="button"
                       >
                         <Image
@@ -529,6 +582,13 @@ function AddTrackPanel({ onClose }: { onClose: () => void }) {
                   <p className="truncate text-xs text-white/55">YouTube: {draft.base.youtubeVideoId}</p>
                 </div>
               </div>
+              <EnrichmentStatus
+                enrichment={enrichment}
+                isPending={enrichMutation.isPending}
+                onRerun={() =>
+                  enrichMutation.mutate({ title: draft.title, artist: draft.artist })
+                }
+              />
               <div className="grid gap-2 sm:grid-cols-2">
                 <LabeledField label="Title">
                   <Input
@@ -590,6 +650,62 @@ function AddTrackPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function EnrichmentStatus({
+  enrichment,
+  isPending,
+  onRerun,
+}: {
+  enrichment: EnrichmentResult | null;
+  isPending: boolean;
+  onRerun: () => void;
+}) {
+  if (isPending) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/60">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Looking up metadata...
+      </div>
+    );
+  }
+
+  if (!enrichment) return null;
+
+  const anyFound = enrichment.sources.length > 0;
+  const confidenceLabel =
+    enrichment.confidence >= 0.8 ? "High" : enrichment.confidence >= 0.6 ? "Medium" : "Low";
+  const confidenceTint =
+    enrichment.confidence >= 0.8
+      ? "text-lime-300 border-lime-400/40 bg-lime-400/10"
+      : enrichment.confidence >= 0.6
+      ? "text-amber-200 border-amber-400/40 bg-amber-400/10"
+      : "text-rose-200 border-rose-400/40 bg-rose-400/10";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs">
+      <Sparkles className="h-3.5 w-3.5 text-lime-300" />
+      {anyFound ? (
+        <>
+          <span className="text-white/70">
+            Auto-filled from {enrichment.sources.join(" + ")}
+          </span>
+          <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${confidenceTint}`}>
+            {confidenceLabel} confidence
+          </span>
+        </>
+      ) : (
+        <span className="text-white/60">No metadata match found — fill in manually.</span>
+      )}
+      <button
+        className="ml-auto rounded-md border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white"
+        onClick={onRerun}
+        type="button"
+      >
+        Re-run
+      </button>
     </div>
   );
 }

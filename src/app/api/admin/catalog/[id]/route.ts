@@ -19,6 +19,7 @@ const catalogUpdateSchema = z
     country: z.string().trim().max(60).nullable().optional(),
     category: z.string().trim().max(60).nullable().optional(),
     genre: z.string().trim().max(60).nullable().optional(),
+    musicbrainzId: z.string().trim().max(64).nullable().optional(),
   })
   .strict();
 
@@ -72,6 +73,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         ...("country" in data ? { country: normalizeNullable(data.country) } : {}),
         ...("category" in data ? { category: normalizeNullable(data.category) } : {}),
         ...("genre" in data ? { genre: normalizeNullable(data.genre) } : {}),
+        ...("musicbrainzId" in data ? { musicbrainzId: normalizeNullable(data.musicbrainzId) } : {}),
       },
     });
     return NextResponse.json({ track });

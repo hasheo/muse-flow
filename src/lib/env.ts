@@ -66,6 +66,7 @@ const envSchema = z.object({
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   QUIZ_SESSION_SECRET: z.string().optional(),
   ADMIN_EMAILS: z.string().optional(),
+  DISCOGS_TOKEN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
