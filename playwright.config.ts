@@ -32,7 +32,10 @@ export default defineConfig({
     // Locally we keep `next dev` for fast iteration.
     command: process.env.CI ? "npm run start" : "npm run dev",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    // Always reuse an already-running server. Locally this lets devs keep
+    // `next dev` running; in CI the workflow pre-starts the built server
+    // so its logs are visible separately on failure.
+    reuseExistingServer: true,
     timeout: 180_000,
   },
 });
