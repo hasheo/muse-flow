@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { ErrorState } from "@/components/ui/error-state";
-import { Input } from "@/components/ui/input";
 import { ManageTracksDialog } from "@/components/manage-tracks-dialog";
 import { QuizGameplayScreen } from "@/components/quiz/quiz-gameplay-screen";
 import type { Track } from "@/lib/catalog";
@@ -928,7 +927,7 @@ export function QuizView() {
           </div>
         ) : null}
 
-        {phase !== "setup" && currentTrack ? (
+        {phase !== "setup" && phase !== "finished" && currentTrack ? (
           <div className="mt-3">
             <QuizGameplayScreen
               answerInput={answerInput}
