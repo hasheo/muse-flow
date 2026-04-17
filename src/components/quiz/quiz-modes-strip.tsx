@@ -24,10 +24,11 @@ const MODES: Mode[] = [
   {
     id: "survival",
     title: "Survival",
-    tagline: "Keep answering until you miss one. Chase your record.",
+    tagline: "Three strikes and you're out. Chase your record.",
     icon: Flame,
+    href: "/quiz/survival",
     accent: "from-amber-400 to-rose-500",
-    status: "coming-soon",
+    status: "active",
   },
   {
     id: "category",

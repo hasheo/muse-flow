@@ -14,12 +14,15 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  isAdmin       Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
   playlists     Playlist[]
   quizAttempts  QuizAttempt[]
+  survivalAttempts SurvivalAttempt[]
+  catalogTracks    CatalogTrack[]     @relation("AddedCatalogTracks")
   collaborations PlaylistCollaborator[]
   usedInvites    PlaylistInvite[]       @relation("UsedInvites")
   addedTracks    PlaylistTrack[]        @relation("AddedTracks")
@@ -84,6 +87,44 @@ model PlaylistTrack {
 enum InviteType {
   email
   link
+}
+
+model CatalogTrack {
+  id             String   @id @default(cuid())
+  title          String
+  artist         String
+  album          String   @default("")
+  duration       Int
+  cover          String   @db.Text
+  youtubeVideoId String
+  year           Int?
+  country        String?
+  category       String?
+  genre          String?
+  addedById      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  addedBy        User?    @relation("AddedCatalogTracks", fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@unique([youtubeVideoId])
+  @@index([category])
+  @@index([genre])
+  @@index([country])
+  @@index([year])
+}
+
+model SurvivalAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  score          Int
+  difficulty     String
+  answerMode     String
+  strikesAllowed Int      @default(3)
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([score])
 }
 
 model PlaylistCollaborator {

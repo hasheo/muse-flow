@@ -1,6 +1,6 @@
 "use client";
 
-import { Flame, Sparkles } from "lucide-react";
+import { Flame, Heart, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { useMemo } from "react";
 
@@ -31,6 +31,8 @@ export type QuizGameplayScreenProps = {
   revealTrack: Track | null;
   onNext: () => void;
   isLastQuestion: boolean;
+  /** When set, show survival strikes (hearts) instead of the question counter + progress bar. */
+  survivalStats?: { strikes: number; strikesAllowed: number };
 };
 
 const WAVEFORM_BARS = 28;
@@ -136,29 +138,63 @@ export function QuizGameplayScreen({
   revealTrack,
   onNext,
   isLastQuestion,
+  survivalStats,
 }: QuizGameplayScreenProps) {
   const timerAnnouncement = phase === "playing" || phase === "answering" ? getTimerAnnouncement(timeLeft) : "";
   const progressPct = Math.round((questionNumber / totalQuestions) * 100);
+  const isSurvival = Boolean(survivalStats);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 pb-16 pt-4 sm:px-8">
       <header className="flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
-            Question
-          </span>
-          <span className="text-2xl font-black tabular-nums text-white sm:text-3xl">
-            {questionNumber}
-          </span>
-          <span className="text-sm font-semibold tabular-nums text-white/40">
-            / {totalQuestions}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1">
-            <Flame className="h-3.5 w-3.5 text-amber-300" />
-            <span className="text-xs font-bold tabular-nums text-amber-200">{streak}</span>
+        {isSurvival && survivalStats ? (
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
+              Survived
+            </span>
+            <span className="text-2xl font-black tabular-nums text-white sm:text-3xl">
+              {score}
+            </span>
+            <span className="text-sm font-semibold uppercase tabular-nums tracking-wider text-white/40">
+              in a row
+            </span>
           </div>
+        ) : (
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
+              Question
+            </span>
+            <span className="text-2xl font-black tabular-nums text-white sm:text-3xl">
+              {questionNumber}
+            </span>
+            <span className="text-sm font-semibold tabular-nums text-white/40">
+              / {totalQuestions}
+            </span>
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          {isSurvival && survivalStats ? (
+            <div className="flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-400/10 px-3 py-1">
+              {Array.from({ length: survivalStats.strikesAllowed }).map((_, index) => {
+                const lifeIndex = survivalStats.strikesAllowed - 1 - index;
+                const alive = lifeIndex >= survivalStats.strikes;
+                return (
+                  <Heart
+                    aria-hidden
+                    className={`h-3.5 w-3.5 transition ${
+                      alive ? "fill-rose-400 text-rose-400" : "text-rose-900"
+                    }`}
+                    key={index}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1">
+              <Flame className="h-3.5 w-3.5 text-amber-300" />
+              <span className="text-xs font-bold tabular-nums text-amber-200">{streak}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 rounded-full border border-lime-400/30 bg-lime-400/10 px-3 py-1">
             <Sparkles className="h-3.5 w-3.5 text-lime-300" />
             <span className="text-xs font-bold tabular-nums text-lime-100">{score}</span>
@@ -166,12 +202,14 @@ export function QuizGameplayScreen({
         </div>
       </header>
 
-      <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-white/5">
-        <div
-          className="h-full bg-gradient-to-r from-lime-400 via-cyan-300 to-fuchsia-400 transition-[width] duration-500"
-          style={{ width: `${progressPct}%` }}
-        />
-      </div>
+      {!isSurvival ? (
+        <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-white/5">
+          <div
+            className="h-full bg-gradient-to-r from-lime-400 via-cyan-300 to-fuchsia-400 transition-[width] duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      ) : null}
 
       <p aria-live="polite" className="sr-only" role="status">
         {timerAnnouncement}
@@ -277,7 +315,7 @@ export function QuizGameplayScreen({
               onClick={onNext}
               type="button"
             >
-              {isLastQuestion ? "Finish quiz" : "Next question"}
+              {isSurvival ? "Next track" : isLastQuestion ? "Finish quiz" : "Next question"}
             </Button>
           </div>
         ) : null}
