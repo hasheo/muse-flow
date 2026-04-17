@@ -28,7 +28,7 @@ function checkRateLimitInMemory(key: string, options: RateLimitOptions): RateLim
       allowed: true,
       remaining: options.maxRequests - 1,
       resetAt,
-      retryAfterMs: options.windowMs,
+      retryAfterMs: 0,
     };
   }
 
@@ -47,7 +47,7 @@ function checkRateLimitInMemory(key: string, options: RateLimitOptions): RateLim
     allowed: true,
     remaining: Math.max(0, options.maxRequests - current.count),
     resetAt: current.resetAt,
-    retryAfterMs: Math.max(0, current.resetAt - now),
+    retryAfterMs: 0,
   };
 }
 
@@ -103,11 +103,12 @@ async function checkRateLimitDistributed(key: string, options: RateLimitOptions)
     cache: "no-store",
   }).catch(() => undefined);
 
+  const allowed = count <= options.maxRequests;
   return {
-    allowed: count <= options.maxRequests,
+    allowed,
     remaining: Math.max(0, options.maxRequests - count),
     resetAt,
-    retryAfterMs,
+    retryAfterMs: allowed ? 0 : retryAfterMs,
   };
 }
 
@@ -119,7 +120,13 @@ export async function checkRateLimit(key: string, options: RateLimitOptions): Pr
 
   try {
     return await checkRateLimitDistributed(key, options);
-  } catch {
+  } catch (error) {
+    // Fallback to per-instance in-memory counter on Upstash outage.
+    // This is a deliberate fail-open across instances: users keep getting served,
+    // but cross-instance coordination is lost until Upstash recovers.
+    // For auth/write endpoints consider a stricter policy (fail-closed) via
+    // a callsite wrapper in api-security.
+    console.error("[rate-limit] Upstash unavailable, falling back to in-memory", error);
     return checkRateLimitInMemory(key, options);
   }
 }
