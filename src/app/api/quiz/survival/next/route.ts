@@ -78,17 +78,70 @@ export async function POST(request: NextRequest) {
   }
 
   const pending = await getCatalogTrackById(payload.pending);
-  if (!pending) {
-    return apiError({
-      status: 410,
-      code: "TRACK_GONE",
-      message: "The pending track was removed from the catalog",
-      log: { route: ROUTE, userId: session.user.id },
-    });
-  }
-
   const difficulty = coerceQuizDifficulty(payload.diff);
   const answerMode = coerceQuizAnswerMode(payload.mode);
+
+  // Pending track was deleted from the catalog after the token was issued.
+  // Rather than ending the run on the admin's schedule, skip this question
+  // with no score/strike change and serve a new one.
+  if (!pending) {
+    const skipTrack = await pickRandomCatalogTrack(payload.seen);
+    if (!skipTrack) {
+      await db.survivalAttempt.create({
+        data: {
+          userId: session.user.id,
+          score: payload.score,
+          difficulty,
+          answerMode,
+          strikesAllowed: payload.strikesAllowed,
+        },
+      });
+      return NextResponse.json({
+        skipped: true,
+        score: payload.score,
+        strikes: payload.strikes,
+        strikesAllowed: payload.strikesAllowed,
+        gameOver: true,
+        exhausted: true,
+      });
+    }
+
+    const skipSnippetSeconds = getSnippetDurationSeconds(difficulty);
+    const skipSnippetStart = pickSnippetStart(skipTrack.duration, skipSnippetSeconds);
+    const skipSeen = [...payload.seen, skipTrack.id];
+    const skipToken = createSurvivalSessionToken({
+      userId: session.user.id,
+      difficulty,
+      answerMode,
+      score: payload.score,
+      strikes: payload.strikes,
+      strikesAllowed: payload.strikesAllowed,
+      seen: skipSeen,
+      pendingId: skipTrack.id,
+      pendingStart: skipSnippetStart,
+    });
+    const skipOptions =
+      answerMode === "multiple_choice"
+        ? shuffleItems([skipTrack.title, ...(await pickDistractorTitles(skipTrack.id, 3))])
+        : undefined;
+
+    return NextResponse.json({
+      skipped: true,
+      score: payload.score,
+      strikes: payload.strikes,
+      strikesAllowed: payload.strikesAllowed,
+      gameOver: false,
+      token: skipToken,
+      question: {
+        id: skipTrack.id,
+        youtubeVideoId: skipTrack.youtubeVideoId,
+        duration: skipTrack.duration,
+        snippetStart: skipSnippetStart,
+        snippetSeconds: skipSnippetSeconds,
+        options: skipOptions,
+      },
+    });
+  }
 
   const isCorrect =
     !parsed.data.timedOut &&

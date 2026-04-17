@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Flame, Heart, Skull, Trophy } from "lucide-react";
+import { ArrowLeft, Database, Flame, Heart, Skull, Trophy } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -53,8 +54,9 @@ type StartResponse = {
 };
 
 type NextResponse = {
-  correct: boolean;
-  reveal: RevealTrack;
+  correct?: boolean;
+  skipped?: boolean;
+  reveal?: RevealTrack;
   score: number;
   strikes: number;
   strikesAllowed: number;
@@ -78,11 +80,13 @@ function questionToPlaybackTrack(question: SurvivalQuestion): Track {
 }
 
 export function SurvivalPlayView() {
+  const { data: session } = useSession();
   const setPlaying = usePlayerStore((state) => state.setPlaying);
 
   const [phase, setPhase] = useState<Phase>("setup");
   const [difficulty, setDifficulty] = useState<QuizDifficulty>(DEFAULT_QUIZ_DIFFICULTY);
   const [answerMode, setAnswerMode] = useState<QuizAnswerMode>(DEFAULT_QUIZ_ANSWER_MODE);
+  const [catalogEmpty, setCatalogEmpty] = useState(false);
 
   const [token, setToken] = useState<string | null>(null);
   const [question, setQuestion] = useState<SurvivalQuestion | null>(null);
@@ -191,13 +195,21 @@ export function SurvivalPlayView() {
     setIsStarting(true);
     setErrorMessage(null);
     setExhausted(false);
+    setCatalogEmpty(false);
     try {
       const response = await fetch("/api/quiz/survival/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ difficulty, answerMode }),
       });
-      const payload = (await response.json()) as Partial<StartResponse> & { message?: string };
+      const payload = (await response.json()) as Partial<StartResponse> & {
+        message?: string;
+        code?: string;
+      };
+      if (response.status === 409 && payload.code === "EMPTY_CATALOG") {
+        setCatalogEmpty(true);
+        return;
+      }
       if (!response.ok || !payload.token || !payload.question) {
         throw new Error(payload.message || "Failed to start survival run");
       }
@@ -234,15 +246,39 @@ export function SurvivalPlayView() {
           body: JSON.stringify({ token, answer: value, timedOut: Boolean(timedOut) }),
         });
         const payload = (await response.json()) as Partial<NextResponse> & { message?: string };
-        if (!response.ok || !payload.reveal) {
+        if (!response.ok) {
           throw new Error(payload.message || "Failed to submit answer");
+        }
+
+        setScore(payload.score ?? 0);
+        setStrikes(payload.strikes ?? 0);
+        setStrikesAllowed(payload.strikesAllowed ?? strikesAllowed);
+
+        // Pending track was removed mid-game — skip ahead to the new question
+        // without a reveal phase or score/strike change.
+        if (payload.skipped) {
+          if (payload.gameOver) {
+            setExhausted(Boolean(payload.exhausted));
+            setPhase("finished");
+            return;
+          }
+          if (payload.token && payload.question) {
+            setToken(payload.token);
+            setQuestion(payload.question);
+            setRevealTrack(null);
+            setPendingNextQuestion(null);
+            setPendingNextToken(null);
+            await runQuestion(payload.question);
+          }
+          return;
+        }
+
+        if (!payload.reveal) {
+          throw new Error("Missing reveal in response");
         }
 
         setRevealTrack(payload.reveal);
         setLastResult(Boolean(payload.correct));
-        setScore(payload.score ?? 0);
-        setStrikes(payload.strikes ?? 0);
-        setStrikesAllowed(payload.strikesAllowed ?? strikesAllowed);
 
         if (payload.gameOver) {
           setExhausted(Boolean(payload.exhausted));
@@ -263,7 +299,7 @@ export function SurvivalPlayView() {
         submitInFlightRef.current = false;
       }
     },
-    [clearTimers, stopQuizAudio, strikesAllowed, token],
+    [clearTimers, runQuestion, stopQuizAudio, strikesAllowed, token],
   );
 
   const handleNext = useCallback(async () => {
@@ -315,7 +351,39 @@ export function SurvivalPlayView() {
         </span>
       </div>
 
-      {phase === "setup" ? (
+      {phase === "setup" && catalogEmpty ? (
+        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-4 py-10 sm:px-8">
+          <div className="rounded-3xl border border-amber-300/30 bg-gradient-to-br from-amber-500/15 via-black/40 to-rose-500/10 p-8 text-center sm:p-10">
+            <Database className="mx-auto h-10 w-10 text-amber-200" />
+            <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.3em] text-amber-200">
+              Catalog is empty
+            </p>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              Survival mode isn&apos;t available yet
+            </h2>
+            <p className="mt-2 text-sm text-white/60 sm:text-base">
+              The survival catalog needs to be seeded with tracks before anyone can play.
+              Once an admin adds some, you&apos;ll be able to start a run.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <Link href="/quiz">
+                <Button className="h-11 rounded-2xl px-5 font-bold" type="button" variant="ghost">
+                  Back to lobby
+                </Button>
+              </Link>
+              {session?.user?.isAdmin ? (
+                <Link href="/admin/catalog">
+                  <Button className="h-11 rounded-2xl px-5 font-bold" type="button">
+                    Open admin catalog
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {phase === "setup" && !catalogEmpty ? (
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-6 px-4 py-10 sm:px-8">
           <div className="space-y-2 text-center">
             <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-rose-300">
