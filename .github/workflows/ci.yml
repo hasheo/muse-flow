@@ -25,8 +25,15 @@ jobs:
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ci-secret-change-me
-      YOUTUBE_API_KEY: ci-placeholder
+      # CI-only NEXTAUTH_SECRET. NEVER reuse anywhere else.
+      # Production deploys must set this via the host's secret manager
+      # (Vercel/Render/etc.). The runtime validator in `src/lib/env.ts`
+      # refuses literal placeholder values like `change-me` or `placeholder`
+      # in production. This value is random-looking so the e2e server can
+      # boot, but it is published in the workflow file and must be treated
+      # as compromised.
+      NEXTAUTH_SECRET: 4f7c2f6d9e1a8b3c5d2e9f4a7b1c8e6d3a5f2b9c4e7d1a8f
+      YOUTUBE_API_KEY: ci-only-not-a-real-key
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout
@@ -82,8 +89,11 @@ jobs:
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ci-secret-change-me
-      YOUTUBE_API_KEY: ci-placeholder
+      # CI-only NEXTAUTH_SECRET. See the quality job for the full warning.
+      # This value is published in the workflow file and must be treated as
+      # compromised — never reuse it in any other environment.
+      NEXTAUTH_SECRET: 4f7c2f6d9e1a8b3c5d2e9f4a7b1c8e6d3a5f2b9c4e7d1a8f
+      YOUTUBE_API_KEY: ci-only-not-a-real-key
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout

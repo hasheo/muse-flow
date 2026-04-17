@@ -15,10 +15,23 @@ Project: `music-player`
 
 - [x] `.env.example` exists and documents required env vars.
 - [x] `.env*` is ignored by git.
+- [x] Runtime env validation rejects placeholder/short `NEXTAUTH_SECRET` in production.
+  - Implemented in `src/lib/env.ts`; triggered at server boot via `instrumentation.ts`.
+  - Production deploy fails fast on weak secrets, missing vars, or non-HTTPS `NEXTAUTH_URL`.
 - [ ] `NEXTAUTH_SECRET` is rotated to strong production secret (not placeholder).
-- [ ] `YOUTUBE_API_KEY` is restricted (HTTP referrer/IP + quota alerts configured).
+  - Generate: `openssl rand -base64 48`.
+  - Vercel: Project → Settings → Environment Variables → set `NEXTAUTH_SECRET` for the `Production` environment only → Save → redeploy.
+  - Verify rotation: existing sessions are invalidated (users will be signed out — expected).
+  - Rotate at least every 90 days, or immediately on suspected compromise.
+- [ ] `YOUTUBE_API_KEY` is restricted (HTTP referrer + quota alerts configured).
+  - Google Cloud Console → APIs & Services → Credentials → select the key.
+  - Application restrictions → "HTTP referrers" → add `https://<your-prod-domain>/*` (and any preview domains).
+  - API restrictions → "Restrict key" → allow only "YouTube Data API v3".
+  - Quotas: APIs & Services → Quotas → set an alert at 80% of daily quota (default 10k units/day).
+  - Keep the unrestricted dev key in a separate Google Cloud project.
 - [ ] Separate env values prepared for production (no dev defaults).
-  - `.env.example` now includes generation instructions for `NEXTAUTH_SECRET` and production guidance for `NEXTAUTH_URL`.
+  - `.env.example` includes generation instructions for `NEXTAUTH_SECRET` and production guidance for `NEXTAUTH_URL`.
+  - CI uses an obviously non-production placeholder (`ci-placeholder-do-not-use-in-prod-…`) which the production validator would refuse.
 
 ## 3) Authentication and authorization
 
