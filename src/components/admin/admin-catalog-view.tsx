@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import { ListPlus, Loader2, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AdminCatalogImportPanel } from "@/components/admin/admin-catalog-import-panel";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,43 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/hooks/use-toast";
 import type { Track } from "@/lib/catalog";
+
+const BULK_PLAIN_BATCH = 50;
+const BULK_ENRICH_BATCH = 10;
+
+type BulkPatch = {
+  category?: string;
+  country?: string;
+  year?: number;
+  genre?: string;
+};
+
+type BulkUpdateResponse = {
+  updated: number;
+  skipped?: number;
+  errors?: number;
+};
+
+async function bulkUpdateCatalog(input: { ids: string[]; patch: BulkPatch; enrich: boolean }) {
+  const response = await fetch("/api/admin/catalog/bulk-update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const payload = (await response.json().catch(() => ({}))) as BulkUpdateResponse & {
+    message?: string;
+  };
+  if (!response.ok) throw new Error(payload.message || "Bulk update failed");
+  return payload;
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
 
 type CatalogTrack = {
   id: string;
@@ -144,6 +181,7 @@ export function AdminCatalogView() {
   const [debouncedFilter, setDebouncedFilter] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedFilter(searchFilter), 200);
@@ -155,10 +193,42 @@ export function AdminCatalogView() {
     queryFn: () => fetchCatalog(debouncedFilter),
   });
 
+  const visibleIds = useMemo(() => tracks.map((t) => t.id), [tracks]);
+  const selectionCount = selectedIds.size;
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+
+  const toggleRow = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAllVisible = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const id of visibleIds) next.delete(id);
+      } else {
+        for (const id of visibleIds) next.add(id);
+      }
+      return next;
+    });
+
+  const clearSelection = () => setSelectedIds(new Set());
+
   const deleteMutation = useMutation({
     mutationFn: deleteCatalogTrack,
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       toast({ message: "Track removed", variant: "success" });
+      setSelectedIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ["admin-catalog"] });
     },
     onError: (err: Error) => toast({ message: err.message, variant: "error" }),
@@ -171,7 +241,12 @@ export function AdminCatalogView() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
           <Input
             className="pl-9"
-            onChange={(event) => setSearchFilter(event.target.value)}
+            onChange={(event) => {
+              setSearchFilter(event.target.value);
+              // Filter changes can hide previously-selected rows. Drop the
+              // selection so the bulk bar's count matches what's on screen.
+              if (selectedIds.size > 0) setSelectedIds(new Set());
+            }}
             placeholder="Filter catalog by title, artist, category, genre..."
             value={searchFilter}
           />
@@ -217,10 +292,19 @@ export function AdminCatalogView() {
           No catalog tracks yet. Add one above.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-white/10">
+        <div className={`overflow-hidden rounded-xl border border-white/10 ${selectionCount > 0 ? "pb-32" : ""}`}>
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-white/5 text-[10px] font-bold uppercase tracking-wider text-white/60">
               <tr>
+                <th className="w-10 px-3 py-2">
+                  <input
+                    aria-label={allVisibleSelected ? "Clear selection" : "Select all on this page"}
+                    checked={allVisibleSelected}
+                    className="h-4 w-4 cursor-pointer accent-lime-400"
+                    onChange={toggleAllVisible}
+                    type="checkbox"
+                  />
+                </th>
                 <th className="px-3 py-2">Track</th>
                 <th className="px-3 py-2">Artist</th>
                 <th className="px-3 py-2">Year</th>
@@ -236,6 +320,8 @@ export function AdminCatalogView() {
                 <CatalogTrackRow
                   key={track.id}
                   track={track}
+                  isSelected={selectedIds.has(track.id)}
+                  onToggleSelected={() => toggleRow(track.id)}
                   onDelete={() => deleteMutation.mutate(track.id)}
                   isDeleting={deleteMutation.isPending && deleteMutation.variables === track.id}
                 />
@@ -244,16 +330,31 @@ export function AdminCatalogView() {
           </table>
         </div>
       )}
+
+      {selectionCount > 0 ? (
+        <BulkActionBar
+          selectedIds={Array.from(selectedIds)}
+          onClear={clearSelection}
+          onApplied={() => {
+            clearSelection();
+            queryClient.invalidateQueries({ queryKey: ["admin-catalog"] });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
 function CatalogTrackRow({
   track,
+  isSelected,
+  onToggleSelected,
   onDelete,
   isDeleting,
 }: {
   track: CatalogTrack;
+  isSelected: boolean;
+  onToggleSelected: () => void;
   onDelete: () => void;
   isDeleting: boolean;
 }) {
@@ -294,7 +395,16 @@ function CatalogTrackRow({
 
   if (!isEditing) {
     return (
-      <tr className="border-t border-white/5 hover:bg-white/5">
+      <tr className={`border-t border-white/5 hover:bg-white/5 ${isSelected ? "bg-lime-400/5" : ""}`}>
+        <td className="px-3 py-2">
+          <input
+            aria-label={isSelected ? `Deselect ${track.title}` : `Select ${track.title}`}
+            checked={isSelected}
+            className="h-4 w-4 cursor-pointer accent-lime-400"
+            onChange={onToggleSelected}
+            type="checkbox"
+          />
+        </td>
         <td className="px-3 py-2">
           <div className="flex items-center gap-2">
             <Image
@@ -337,7 +447,7 @@ function CatalogTrackRow({
 
   return (
     <tr className="border-t border-white/5 bg-lime-400/5">
-      <td className="px-3 py-2" colSpan={8}>
+      <td className="px-3 py-2" colSpan={9}>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <LabeledField label="Title">
             <Input
@@ -725,6 +835,184 @@ function EnrichmentStatus({
       >
         Re-run
       </button>
+    </div>
+  );
+}
+
+function BulkActionBar({
+  selectedIds,
+  onClear,
+  onApplied,
+}: {
+  selectedIds: string[];
+  onClear: () => void;
+  onApplied: () => void;
+}) {
+  const { toast } = useToast();
+  const [category, setCategory] = useState("");
+  const [country, setCountry] = useState("");
+  const [year, setYear] = useState("");
+  const [genre, setGenre] = useState("");
+  const [enrich, setEnrich] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const buildPatch = (): BulkPatch => {
+    const patch: BulkPatch = {};
+    if (category.trim()) patch.category = category.trim();
+    if (country.trim()) patch.country = country.trim();
+    if (year.trim()) patch.year = Number(year);
+    if (genre.trim()) patch.genre = genre.trim();
+    return patch;
+  };
+
+  const hasPatch =
+    category.trim().length > 0 ||
+    country.trim().length > 0 ||
+    year.trim().length > 0 ||
+    genre.trim().length > 0;
+
+  const isPending = progress !== null;
+
+  const apply = async () => {
+    const patch = buildPatch();
+    if (!enrich && Object.keys(patch).length === 0) {
+      toast({ message: "Set at least one field, or enable Re-enrich", variant: "error" });
+      return;
+    }
+
+    const batchSize = enrich ? BULK_ENRICH_BATCH : BULK_PLAIN_BATCH;
+    const chunks = chunk(selectedIds, batchSize);
+    setProgress({ done: 0, total: selectedIds.length });
+
+    let updatedTotal = 0;
+    let errorTotal = 0;
+
+    try {
+      for (const ids of chunks) {
+        const result = await bulkUpdateCatalog({ ids, patch, enrich });
+        updatedTotal += result.updated;
+        errorTotal += result.errors ?? 0;
+        setProgress((prev) =>
+          prev ? { done: prev.done + ids.length, total: prev.total } : prev,
+        );
+      }
+      const message = errorTotal
+        ? `Updated ${updatedTotal}, ${errorTotal} failed`
+        : `Updated ${updatedTotal} track${updatedTotal === 1 ? "" : "s"}`;
+      toast({ message, variant: errorTotal ? "error" : "success" });
+      setCategory("");
+      setCountry("");
+      setYear("");
+      setGenre("");
+      setEnrich(false);
+      onApplied();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Bulk update failed";
+      toast({ message, variant: "error" });
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  const pct = progress
+    ? Math.min(100, Math.round((progress.done / Math.max(1, progress.total)) * 100))
+    : 0;
+
+  return (
+    <div className="sticky bottom-3 z-10 mt-4 rounded-2xl border border-lime-400/40 bg-[#0a0916]/95 p-4 shadow-2xl shadow-lime-500/10 backdrop-blur">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="rounded-full border border-lime-400/40 bg-lime-400/10 px-3 py-1 text-xs font-bold text-lime-200">
+          {selectedIds.length} selected
+        </span>
+        <button
+          className="text-xs text-white/60 underline-offset-2 hover:underline"
+          onClick={onClear}
+          type="button"
+        >
+          Clear selection
+        </button>
+        <span className="ml-auto text-[10px] uppercase tracking-wider text-white/40">
+          Empty fields are left unchanged
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <LabeledField label="Category">
+          <Input
+            disabled={isPending}
+            onChange={(event) => setCategory(event.target.value)}
+            placeholder="Anime OST"
+            value={category}
+          />
+        </LabeledField>
+        <LabeledField label="Country">
+          <Input
+            disabled={isPending}
+            onChange={(event) => setCountry(event.target.value)}
+            placeholder="Japan"
+            value={country}
+          />
+        </LabeledField>
+        <LabeledField label="Year">
+          <Input
+            disabled={isPending}
+            inputMode="numeric"
+            onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="2000"
+            value={year}
+          />
+        </LabeledField>
+        <LabeledField label="Genre">
+          <Input
+            disabled={isPending}
+            onChange={(event) => setGenre(event.target.value)}
+            placeholder="Rock"
+            value={genre}
+          />
+        </LabeledField>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-white/70">
+          <input
+            checked={enrich}
+            className="h-4 w-4 cursor-pointer accent-lime-400"
+            disabled={isPending}
+            onChange={(event) => setEnrich(event.target.checked)}
+            type="checkbox"
+          />
+          Re-enrich from MusicBrainz/Discogs
+        </label>
+        {enrich ? (
+          <span className="text-[10px] text-amber-200/80">
+            Slower — capped at {BULK_ENRICH_BATCH}/batch and rate-limited per admin
+          </span>
+        ) : null}
+        <Button
+          className="ml-auto"
+          disabled={isPending || (!hasPatch && !enrich)}
+          onClick={() => void apply()}
+          type="button"
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              Applying {progress?.done}/{progress?.total}
+            </>
+          ) : (
+            `Apply to ${selectedIds.length}`
+          )}
+        </Button>
+      </div>
+
+      {progress ? (
+        <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-white/5">
+          <div
+            className="h-full bg-gradient-to-r from-lime-400 to-cyan-300 transition-[width] duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
