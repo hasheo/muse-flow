@@ -1,15 +1,15 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Image from "next/image";
 import Link from "next/link";
+import { ArrowLeft, Trophy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorState } from "@/components/ui/error-state";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { QuizGameplayScreen } from "@/components/quiz/quiz-gameplay-screen";
 import type { Track } from "@/lib/catalog";
 import {
   coerceQuizDifficulty,
@@ -36,9 +36,18 @@ import {
   type QuizAttemptAnswer,
 } from "@/lib/quiz-types";
 import { fetchPlaylistTracks, saveQuizAttempt, isTokenExpiredError, fetchQuizAttempts } from "@/lib/quiz-api";
-import { shuffleTracks, buildMultipleChoiceOptions, getTimerAnnouncement } from "@/lib/quiz-utils";
+import { shuffleTracks, buildMultipleChoiceOptions } from "@/lib/quiz-utils";
 
 type QuizPhase = "ready" | "playing" | "answering" | "revealed" | "finished";
+
+function computeStreak(reviewEntries: (QuestionReview | undefined)[], uptoIndex: number) {
+  let streak = 0;
+  for (let i = uptoIndex; i >= 0; i--) {
+    if (reviewEntries[i]?.isCorrect) streak++;
+    else break;
+  }
+  return streak;
+}
 
 export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const queryClient = useQueryClient();
@@ -79,7 +88,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
   const difficulty = difficultyOverride ?? playlistDifficulty;
   const answerMode = playlistAnswerMode;
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
-  const timerAnnouncement = phase === "playing" || phase === "answering" ? getTimerAnnouncement(timeLeft) : "";
 
   useEffect(() => {
     return () => {
@@ -286,205 +294,125 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
     await startQuizFromTracks(sourceTracks);
   };
 
+  const streak =
+    phase === "revealed"
+      ? computeStreak(reviewEntries, currentIndex)
+      : computeStreak(reviewEntries, currentIndex - 1);
+
   return (
-    <section className="rounded-2xl border border-white/10 bg-black/35 p-4">
-      {isLoading ? <div className="mb-3"><Spinner size="sm" /></div> : null}
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-white/70">
-            {playlistData?.playlist?.name} {playlistData?.playlist?.ownerName ? `• by ${playlistData.playlist.ownerName}` : ""}
-          </p>
-        </div>
-        <Link className="text-xs text-lime-300 hover:underline" href="/quiz">
-          Back to Public Quiz
+    <div className="relative flex w-full flex-1 flex-col">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 pt-2 sm:px-8">
+        <Link
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/60 transition hover:text-white"
+          href="/quiz"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to lobby
         </Link>
+        {phase !== "finished" && playlistData?.playlist?.name ? (
+          <p className="truncate text-xs text-white/60 sm:text-sm">
+            {playlistData.playlist.name}
+            {playlistData.playlist.ownerName ? ` • ${playlistData.playlist.ownerName}` : ""}
+          </p>
+        ) : null}
       </div>
 
+      {isLoading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner size="sm" />
+        </div>
+      ) : null}
+
       {phase === "ready" ? (
-        <div className="space-y-3">
-          <p className="text-sm text-white/70">
-            This playlist contains {playlistData?.tracks?.length ?? 0} tracks.
-          </p>
-          <p className="text-xs text-white/55">
-            Difficulty: {getQuizDifficultyLabel(playlistData?.playlist?.difficulty ?? DEFAULT_QUIZ_DIFFICULTY)}
-          </p>
-          <p className="text-xs text-white/55">
-            Answer mode: {getQuizAnswerModeLabel(answerMode)}
-          </p>
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/50">Difficulty</p>
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-6 px-4 py-10 sm:px-8">
+          <div className="space-y-2 text-center">
+            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-lime-300">
+              Ready up
+            </p>
+            <h1 className="text-3xl font-black tracking-tight text-white sm:text-5xl">
+              {playlistData?.playlist?.name ?? "Quiz"}
+            </h1>
+            <p className="text-sm text-white/60 sm:text-base">
+              {playlistData?.tracks?.length ?? 0} tracks •{" "}
+              {getQuizAnswerModeLabel(answerMode)}
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-black/40 p-5 sm:p-6">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.25em] text-white/50">
+              Choose difficulty
+            </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {QUIZ_DIFFICULTY_OPTIONS.map((option) => (
                 <button
-                  className={`rounded-md border px-3 py-2.5 text-sm transition ${
+                  className={`rounded-2xl border px-3 py-3 text-sm font-bold transition ${
                     difficulty === option.value
-                      ? "border-lime-400/70 bg-lime-400/20 text-lime-100"
+                      ? "border-lime-400/70 bg-lime-400/20 text-lime-100 shadow-lg shadow-lime-500/10"
                       : "border-white/15 bg-white/5 text-white/80 hover:border-white/30"
                   }`}
                   key={option.value}
                   onClick={() => setDifficultyOverride(option.value)}
                   type="button"
                 >
-                  {option.label} ({option.snippetSeconds}s)
+                  <span className="block">{option.label}</span>
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-white/50">
+                    {option.snippetSeconds}s snippet
+                  </span>
                 </button>
               ))}
             </div>
           </div>
           <Button
+            className="h-14 rounded-2xl text-base font-black"
             onClick={() => void startQuizFromTracks(playlistData?.tracks ?? [])}
             type="button"
           >
-            Start Quiz
+            Start quiz
           </Button>
+          {errorMessage ? <ErrorState compact message={errorMessage} /> : null}
         </div>
       ) : null}
 
       {phase !== "finished" && phase !== "ready" && currentTrack ? (
-        <div className="space-y-3">
-          <p className="text-sm text-white/70">
-            Question {currentIndex + 1}/{quizTracks.length} • Score: {score}
-          </p>
-
-          {phase === "playing" || phase === "answering" ? (
-            <p className="min-h-10 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
-              {phase === "playing"
-                ? `Playing ${snippetDurationSeconds}-second snippet... listen carefully.`
-                : "Snippet finished. Choose your answer."}
-            </p>
-          ) : null}
-
-          {(phase === "playing" || phase === "answering") && answerMode === "typed" ? (
-            <form
-              className="space-y-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!currentTrack) {
-                  return;
-                }
-                submitAnswer(answerInput, currentTrack, currentIndex);
-              }}
-            >
-              <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
-              {phase === "playing" ? (
-                <p className="text-xs text-white/65">Snippet is playing. You can answer now.</p>
-              ) : null}
-              <p aria-live="polite" className="sr-only" role="status">
-                {timerAnnouncement}
-              </p>
-              <div
-                aria-label="Answer time remaining"
-                aria-valuemax={15}
-                aria-valuemin={0}
-                aria-valuenow={timeLeft}
-                className="h-2 w-full overflow-hidden rounded-full bg-white/10"
-                role="progressbar"
-              >
-                <div
-                  className="h-full bg-lime-400 transition-[width] duration-700"
-                  style={{ width: `${Math.max(0, Math.min(100, (timeLeft / 15) * 100))}%` }}
-                />
-              </div>
-              <Input
-                onChange={(event) => setAnswerInput(event.target.value)}
-                placeholder="Guess the song title..."
-                value={answerInput}
-              />
-              <Button type="submit">Submit Answer</Button>
-            </form>
-          ) : null}
-
-          {(phase === "playing" || phase === "answering") && answerMode === "multiple_choice" ? (
-            <div className="space-y-2">
-              <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
-              <p className="min-h-5 text-xs text-white/65">
-                {phase === "playing"
-                  ? "Snippet is playing. You can answer now."
-                  : "Snippet finished. Answer now."}
-              </p>
-              <p aria-live="polite" className="sr-only" role="status">
-                {timerAnnouncement}
-              </p>
-              <div
-                aria-label="Answer time remaining"
-                aria-valuemax={15}
-                aria-valuemin={0}
-                aria-valuenow={timeLeft}
-                className="h-2 w-full overflow-hidden rounded-full bg-white/10"
-                role="progressbar"
-              >
-                <div
-                  className="h-full bg-lime-400 transition-[width] duration-700"
-                  style={{ width: `${Math.max(0, Math.min(100, (timeLeft / 15) * 100))}%` }}
-                />
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {multipleChoiceOptions.map((option, index) => (
-                  <Button
-                    className="justify-start rounded-lg px-3 py-2 text-left"
-                    key={`${option}-${index}`}
-                    onClick={() => {
-                      if (!currentTrack) {
-                        return;
-                      }
-                      submitAnswer(option, currentTrack, currentIndex);
-                    }}
-                    type="button"
-                    variant="ghost"
-                  >
-                    {index + 1}. {option}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {phase === "revealed" && quizTracks[currentIndex] ? (
-            <div className="space-y-4">
-              <div
-                className={`flex flex-col items-center gap-4 rounded-xl border p-5 ${
-                  lastResult
-                    ? "border-lime-300/30 bg-lime-950/80"
-                    : "border-red-300/30 bg-red-950/80"
-                }`}
-              >
-                <p className={`text-lg font-bold ${lastResult ? "text-lime-300" : "text-red-300"}`}>
-                  {lastResult ? "Correct!" : "Wrong!"}
-                </p>
-                <Image
-                  alt={quizTracks[currentIndex].title}
-                  className="aspect-square w-40 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-52"
-                  height={208}
-                  src={quizTracks[currentIndex].cover}
-                  unoptimized
-                  width={208}
-                />
-                <div className="w-full text-center">
-                  <p className="truncate text-lg font-bold text-white">
-                    {quizTracks[currentIndex].title}
-                  </p>
-                  <p className="truncate text-sm text-white/50">
-                    {quizTracks[currentIndex].artist}
-                  </p>
-                </div>
-              </div>
-              <Button onClick={() => void nextQuestion()} type="button" variant="ghost">
-                {currentIndex + 1 >= quizTracks.length ? "Finish Quiz" : "Next Question"}
-              </Button>
-            </div>
-          ) : null}
-        </div>
+        <QuizGameplayScreen
+          answerInput={answerInput}
+          answerMode={answerMode}
+          isLastQuestion={currentIndex + 1 >= quizTracks.length}
+          lastResult={lastResult}
+          multipleChoiceOptions={multipleChoiceOptions}
+          onAnswerInputChange={setAnswerInput}
+          onNext={() => void nextQuestion()}
+          onSelectMultipleChoice={(option) => submitAnswer(option, currentTrack, currentIndex)}
+          onSubmitTypedAnswer={() => submitAnswer(answerInput, currentTrack, currentIndex)}
+          phase={phase}
+          questionNumber={currentIndex + 1}
+          revealTrack={phase === "revealed" ? currentTrack : null}
+          score={score}
+          snippetDurationSeconds={snippetDurationSeconds}
+          streak={streak}
+          timeLeft={timeLeft}
+          totalQuestions={quizTracks.length}
+        />
       ) : null}
 
       {phase === "finished" ? (
-        <div className="space-y-2">
-          <p className="text-lg font-semibold">Quiz finished</p>
-          <p className="text-sm text-white/70">
-            Final score: {score}/{quizTracks.length}
-          </p>
-          <div className="mt-2 grid gap-3 lg:grid-cols-2">
-            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Leaderboard</p>
-              <div className="mt-2 space-y-1 text-sm">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pb-16 pt-6 sm:px-8">
+          <div className="rounded-3xl border border-lime-300/20 bg-gradient-to-br from-lime-500/15 via-black/50 to-cyan-500/15 p-6 text-center sm:p-10">
+            <Trophy className="mx-auto h-10 w-10 text-amber-300" />
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.3em] text-white/60">
+              Final score
+            </p>
+            <p className="mt-1 text-5xl font-black tracking-tight text-white sm:text-6xl">
+              {score}
+              <span className="text-2xl text-white/40 sm:text-3xl">/{quizTracks.length}</span>
+            </p>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/50">
+                Leaderboard
+              </p>
+              <div className="mt-3 space-y-1 text-sm">
                 {(attemptsData?.leaderboard ?? []).length ? (
                   (attemptsData?.leaderboard ?? []).map((attempt, index) => (
                     <p className="text-white/80" key={`${attempt.userId}-${attempt.createdAt}`}>
@@ -497,9 +425,11 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
                 )}
               </div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Your History</p>
-              <div className="mt-2 space-y-1 text-sm">
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/50">
+                Your history
+              </p>
+              <div className="mt-3 space-y-1 text-sm">
                 {(attemptsData?.userHistory ?? []).length ? (
                   (attemptsData?.userHistory ?? []).map((attempt) => (
                     <p className="text-white/80" key={attempt.id}>
@@ -514,16 +444,21 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
               </div>
             </div>
           </div>
-          <div className="mt-2 rounded-lg border border-white/10 bg-white/5 p-3">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/50">Review Answers</p>
-            <div className="mt-2 space-y-2">
+
+          <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-white/50">
+              Review answers
+            </p>
+            <div className="mt-3 space-y-2">
               {reviewEntries.filter(Boolean).length ? (
                 reviewEntries
                   .filter((entry): entry is QuestionReview => Boolean(entry))
                   .map((entry) => (
-                    <div className="rounded-md border border-white/10 px-3 py-2" key={entry.questionNumber}>
-                      <p className="text-sm text-white/80">Q{entry.questionNumber}</p>
-                      <p className="text-sm text-white/65">Your answer: {entry.userAnswer || "Not answered"}</p>
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2" key={entry.questionNumber}>
+                      <p className="text-sm font-semibold text-white/80">Q{entry.questionNumber}</p>
+                      <p className="text-sm text-white/65">
+                        Your answer: {entry.userAnswer || "Not answered"}
+                      </p>
                       <p className="text-sm text-white/65">Correct: {entry.correctAnswer}</p>
                       <p className={`text-sm ${entry.isCorrect ? "text-lime-300" : "text-amber-300"}`}>
                         {entry.isCorrect ? "Correct" : "Wrong"}
@@ -535,18 +470,26 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => void restartQuiz()} type="button" variant="ghost">
-              Play Again
+
+          <div className="flex flex-wrap gap-2">
+            <Button className="h-12 rounded-2xl px-6 font-bold" onClick={() => void restartQuiz()} type="button">
+              Play again
             </Button>
             <Link href="/quiz">
-              <Button type="button">Back to Public Quiz</Button>
+              <Button className="h-12 rounded-2xl px-6 font-bold" type="button" variant="ghost">
+                Back to lobby
+              </Button>
             </Link>
           </div>
         </div>
       ) : null}
 
-      {errorMessage ? <ErrorState className="mt-3" compact message={errorMessage} /> : null}
+      {errorMessage && phase !== "ready" ? (
+        <div className="mx-auto w-full max-w-3xl px-4 pb-4 sm:px-8">
+          <ErrorState compact message={errorMessage} />
+        </div>
+      ) : null}
+
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={mainContainerRef} />
       <div aria-hidden className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0" ref={preloadContainerRef} />
       <ConfirmDialog
@@ -559,6 +502,6 @@ export function QuizPlayView({ playlistId }: { playlistId: string }) {
         open={isFinishConfirmOpen}
         title="Finish quiz now?"
       />
-    </section>
+    </div>
   );
 }

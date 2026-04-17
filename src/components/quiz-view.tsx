@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,7 @@ import { CreatePlaylistDialog } from "@/components/create-playlist-dialog";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { ManageTracksDialog } from "@/components/manage-tracks-dialog";
+import { QuizGameplayScreen } from "@/components/quiz/quiz-gameplay-screen";
 import type { Track } from "@/lib/catalog";
 import {
   coerceQuizDifficulty,
@@ -40,9 +40,18 @@ import {
   type QuizAttemptAnswer,
 } from "@/lib/quiz-types";
 import { fetchPlaylistTracks, saveQuizAttempt, isTokenExpiredError, fetchQuizAttempts } from "@/lib/quiz-api";
-import { shuffleTracks, buildMultipleChoiceOptions, getTimerAnnouncement } from "@/lib/quiz-utils";
+import { shuffleTracks, buildMultipleChoiceOptions } from "@/lib/quiz-utils";
 
 type QuizPhase = "setup" | "playing" | "answering" | "revealed" | "finished";
+
+function computeQuizStreak(reviewEntries: (QuestionReview | undefined)[], uptoIndex: number) {
+  let streak = 0;
+  for (let i = uptoIndex; i >= 0; i--) {
+    if (reviewEntries[i]?.isCorrect) streak++;
+    else break;
+  }
+  return streak;
+}
 
 async function setPlaylistPublic(playlistId: string, isPublic: boolean) {
   const response = await fetch(`/api/playlists/${playlistId}`, {
@@ -166,7 +175,6 @@ export function QuizView() {
 
   const currentTrack = quizTracks[currentIndex] ?? null;
   const snippetDurationSeconds = getSnippetDurationSeconds(difficulty);
-  const timerAnnouncement = phase === "playing" || phase === "answering" ? getTimerAnnouncement(timeLeft) : "";
 
   const clearPreviewTimeout = useCallback(() => {
     if (previewTimeoutRef.current) {
@@ -921,138 +929,30 @@ export function QuizView() {
         ) : null}
 
         {phase !== "setup" && currentTrack ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-sm text-white/70">
-              Question {currentIndex + 1}/{quizTracks.length} • Score: {score}
-            </p>
-
-            {phase === "playing" || phase === "answering" ? (
-              <p className="min-h-10 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
-                {phase === "playing"
-                  ? `Playing ${snippetDurationSeconds}-second snippet... listen carefully.`
-                  : "Snippet finished. Choose your answer."}
-              </p>
-            ) : null}
-
-            {(phase === "playing" || phase === "answering") && answerMode === "typed" ? (
-              <form
-                className="space-y-2"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!currentTrack) {
-                    return;
-                  }
-                  submitAnswer(answerInput, currentTrack, currentIndex);
-                }}
-              >
-                <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
-                {phase === "playing" ? (
-                  <p className="text-xs text-white/65">Snippet is playing. You can answer now.</p>
-                ) : null}
-                <p aria-live="polite" className="sr-only" role="status">
-                  {timerAnnouncement}
-                </p>
-                <div
-                  aria-label="Answer time remaining"
-                  aria-valuemax={15}
-                  aria-valuemin={0}
-                  aria-valuenow={timeLeft}
-                  className="h-2 w-full overflow-hidden rounded-full bg-white/10"
-                  role="progressbar"
-                >
-                  <div
-                    className="h-full bg-lime-400 transition-[width] duration-700"
-                    style={{ width: `${Math.max(0, Math.min(100, (timeLeft / 15) * 100))}%` }}
-                  />
-                </div>
-                <Input
-                  onChange={(event) => setAnswerInput(event.target.value)}
-                  placeholder="Guess the song title..."
-                  value={answerInput}
-                />
-                <Button type="submit">Submit Answer</Button>
-              </form>
-            ) : null}
-
-            {(phase === "playing" || phase === "answering") && answerMode === "multiple_choice" ? (
-              <div className="space-y-2">
-                <p className="text-sm text-lime-300">Time to answer: {timeLeft}s</p>
-                <p className="min-h-5 text-xs text-white/65">
-                  {phase === "playing"
-                    ? "Snippet is playing. You can answer now."
-                    : "Snippet finished. Answer now."}
-                </p>
-                <p aria-live="polite" className="sr-only" role="status">
-                  {timerAnnouncement}
-                </p>
-                <div
-                  aria-label="Answer time remaining"
-                  aria-valuemax={15}
-                  aria-valuemin={0}
-                  aria-valuenow={timeLeft}
-                  className="h-2 w-full overflow-hidden rounded-full bg-white/10"
-                  role="progressbar"
-                >
-                  <div
-                    className="h-full bg-lime-400 transition-[width] duration-700"
-                    style={{ width: `${Math.max(0, Math.min(100, (timeLeft / 15) * 100))}%` }}
-                  />
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {multipleChoiceOptions.map((option, index) => (
-                    <Button
-                      className="justify-start rounded-lg px-3 py-2 text-left"
-                      key={`${option}-${index}`}
-                      onClick={() => {
-                        if (!currentTrack) {
-                          return;
-                        }
-                        submitAnswer(option, currentTrack, currentIndex);
-                      }}
-                      type="button"
-                      variant="ghost"
-                    >
-                      {index + 1}. {option}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {phase === "revealed" && quizTracks[currentIndex] ? (
-              <div className="space-y-4">
-                <div
-                  className={`flex flex-col items-center gap-4 rounded-xl border p-5 ${
-                    lastResult
-                      ? "border-lime-300/30 bg-lime-950/80"
-                      : "border-red-300/30 bg-red-950/80"
-                  }`}
-                >
-                  <p className={`text-lg font-bold ${lastResult ? "text-lime-300" : "text-red-300"}`}>
-                    {lastResult ? "Correct!" : "Wrong!"}
-                  </p>
-                  <Image
-                    alt={quizTracks[currentIndex].title}
-                    className="aspect-square w-40 rounded-2xl object-cover shadow-lg shadow-black/40 sm:w-52"
-                    height={208}
-                    src={quizTracks[currentIndex].cover}
-                    unoptimized
-                    width={208}
-                  />
-                  <div className="w-full text-center">
-                    <p className="truncate text-lg font-bold text-white">
-                      {quizTracks[currentIndex].title}
-                    </p>
-                    <p className="truncate text-sm text-white/50">
-                      {quizTracks[currentIndex].artist}
-                    </p>
-                  </div>
-                </div>
-                <Button onClick={() => void nextQuestion()} type="button" variant="ghost">
-                  {currentIndex + 1 >= quizTracks.length ? "Finish Quiz" : "Next Question"}
-                </Button>
-              </div>
-            ) : null}
+          <div className="mt-3">
+            <QuizGameplayScreen
+              answerInput={answerInput}
+              answerMode={answerMode}
+              isLastQuestion={currentIndex + 1 >= quizTracks.length}
+              lastResult={lastResult}
+              multipleChoiceOptions={multipleChoiceOptions}
+              onAnswerInputChange={setAnswerInput}
+              onNext={() => void nextQuestion()}
+              onSelectMultipleChoice={(option) => submitAnswer(option, currentTrack, currentIndex)}
+              onSubmitTypedAnswer={() => submitAnswer(answerInput, currentTrack, currentIndex)}
+              phase={phase}
+              questionNumber={currentIndex + 1}
+              revealTrack={phase === "revealed" ? currentTrack : null}
+              score={score}
+              snippetDurationSeconds={snippetDurationSeconds}
+              streak={
+                phase === "revealed"
+                  ? computeQuizStreak(reviewEntries, currentIndex)
+                  : computeQuizStreak(reviewEntries, currentIndex - 1)
+              }
+              timeLeft={timeLeft}
+              totalQuestions={quizTracks.length}
+            />
           </div>
         ) : null}
 

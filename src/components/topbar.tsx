@@ -17,16 +17,16 @@ export function Topbar() {
     const query = inputRef.current?.value.trim();
     if (!query) {
       // Just focus the search on the home page
-      if (pathname !== "/app") {
-        router.push("/app?focus=search");
+      if (pathname !== "/player") {
+        router.push("/player?focus=search");
       } else {
         window.dispatchEvent(new CustomEvent("focus-search"));
       }
       return;
     }
 
-    if (pathname !== "/app") {
-      router.push(`/app?focus=search&q=${encodeURIComponent(query)}`);
+    if (pathname !== "/player") {
+      router.push(`/player?focus=search&q=${encodeURIComponent(query)}`);
     } else {
       window.dispatchEvent(new CustomEvent("focus-search", { detail: query }));
     }

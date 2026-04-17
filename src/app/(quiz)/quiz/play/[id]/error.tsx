@@ -31,7 +31,7 @@ export default function QuizPlayError({
         <p className="mt-2 text-xs text-gray-500">Error ID: {error.digest}</p>
       )}
       <Link
-        href="/app/quiz"
+        href="/quiz"
         className="mt-4 rounded-lg bg-lime-600 px-5 py-2.5 text-sm font-medium transition hover:bg-lime-500"
       >
         Back to quizzes

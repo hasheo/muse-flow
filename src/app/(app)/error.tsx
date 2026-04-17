@@ -33,7 +33,7 @@ export default function AppError({
         </p>
       )}
       <Link
-        href="/app"
+        href="/quiz"
         className="mt-4 rounded-lg bg-lime-600 px-5 py-2.5 text-sm font-medium transition hover:bg-lime-500"
       >
         Go home

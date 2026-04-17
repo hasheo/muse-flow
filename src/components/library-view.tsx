@@ -140,8 +140,8 @@ export function LibraryView() {
   if (isEmpty) {
     return (
       <EmptyState
-        action={{ label: "Go to Home", href: "/app" }}
-        description="Create a playlist on the Home page, then save your favorite tracks."
+        action={{ label: "Go to Player", href: "/player" }}
+        description="Create a playlist on the Player page, then save your favorite tracks."
         icon={<Library />}
         title="Your Library is empty"
       />
