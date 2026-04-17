@@ -107,6 +107,9 @@ jobs:
       - name: Seed database
         run: npm run db:seed
 
+      - name: Build app for E2E
+        run: npx next build
+
       - name: Run E2E tests
         run: npm run test:e2e
 
