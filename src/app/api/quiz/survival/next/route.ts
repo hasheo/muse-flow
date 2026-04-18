@@ -80,12 +80,13 @@ export async function POST(request: NextRequest) {
   const pending = await getCatalogTrackById(payload.pending);
   const difficulty = coerceQuizDifficulty(payload.diff);
   const answerMode = coerceQuizAnswerMode(payload.mode);
+  const category = payload.cat ?? null;
 
   // Pending track was deleted from the catalog after the token was issued.
   // Rather than ending the run on the admin's schedule, skip this question
   // with no score/strike change and serve a new one.
   if (!pending) {
-    const skipTrack = await pickRandomCatalogTrack(payload.seen);
+    const skipTrack = await pickRandomCatalogTrack(payload.seen, { category });
     if (!skipTrack) {
       await db.survivalAttempt.create({
         data: {
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       difficulty,
       answerMode,
+      category,
       score: payload.score,
       strikes: payload.strikes,
       strikesAllowed: payload.strikesAllowed,
@@ -122,7 +124,10 @@ export async function POST(request: NextRequest) {
     });
     const skipOptions =
       answerMode === "multiple_choice"
-        ? shuffleItems([skipTrack.title, ...(await pickDistractorTitles(skipTrack.id, 3))])
+        ? shuffleItems([
+            skipTrack.title,
+            ...(await pickDistractorTitles(skipTrack.id, 3, { category })),
+          ])
         : undefined;
 
     return NextResponse.json({
@@ -182,7 +187,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const nextTrack = await pickRandomCatalogTrack(payload.seen);
+  const nextTrack = await pickRandomCatalogTrack(payload.seen, { category });
   if (!nextTrack) {
     // Catalog exhausted — end the run as if all tracks were cleared.
     await db.survivalAttempt.create({
@@ -214,6 +219,7 @@ export async function POST(request: NextRequest) {
     userId: session.user.id,
     difficulty,
     answerMode,
+    category,
     score: nextScore,
     strikes: nextStrikes,
     strikesAllowed: payload.strikesAllowed,
@@ -224,7 +230,10 @@ export async function POST(request: NextRequest) {
 
   const options =
     answerMode === "multiple_choice"
-      ? shuffleItems([nextTrack.title, ...(await pickDistractorTitles(nextTrack.id, 3))])
+      ? shuffleItems([
+          nextTrack.title,
+          ...(await pickDistractorTitles(nextTrack.id, 3, { category })),
+        ])
       : undefined;
 
   return NextResponse.json({

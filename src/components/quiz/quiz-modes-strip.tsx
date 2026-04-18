@@ -35,8 +35,9 @@ const MODES: Mode[] = [
     title: "Category",
     tagline: "Pick a vibe \u2014 Anime, J-Pop, K-Pop, and more.",
     icon: Layers,
+    href: "/quiz/category",
     accent: "from-cyan-400 to-fuchsia-500",
-    status: "coming-soon",
+    status: "active",
   },
 ];
 

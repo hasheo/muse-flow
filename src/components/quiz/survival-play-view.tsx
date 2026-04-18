@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Database, Flame, Heart, Skull, Trophy } from "lucide-react";
+import { ArrowLeft, Database, Flame, Heart, Layers, Skull, Trophy } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -79,9 +79,25 @@ function questionToPlaybackTrack(question: SurvivalQuestion): Track {
   };
 }
 
-export function SurvivalPlayView() {
+type SurvivalPlayViewProps = {
+  // When set, all tracks come from this category. The same SurvivalPlayView
+  // component drives both /quiz/survival (no filter) and /quiz/category/[slug]
+  // (filtered) — only the wire-up differs.
+  categorySlug?: string;
+  categoryName?: string;
+  backHref?: string;
+  backLabel?: string;
+};
+
+export function SurvivalPlayView({
+  categorySlug,
+  categoryName,
+  backHref = "/quiz",
+  backLabel = "Back to lobby",
+}: SurvivalPlayViewProps = {}) {
   const { data: session } = useSession();
   const setPlaying = usePlayerStore((state) => state.setPlaying);
+  const isCategoryMode = Boolean(categorySlug);
 
   const [phase, setPhase] = useState<Phase>("setup");
   const [difficulty, setDifficulty] = useState<QuizDifficulty>(DEFAULT_QUIZ_DIFFICULTY);
@@ -200,7 +216,11 @@ export function SurvivalPlayView() {
       const response = await fetch("/api/quiz/survival/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ difficulty, answerMode }),
+        body: JSON.stringify({
+          difficulty,
+          answerMode,
+          ...(categorySlug ? { categorySlug } : {}),
+        }),
       });
       const payload = (await response.json()) as Partial<StartResponse> & {
         message?: string;
@@ -228,7 +248,7 @@ export function SurvivalPlayView() {
     } finally {
       setIsStarting(false);
     }
-  }, [answerMode, difficulty, isStarting, runQuestion]);
+  }, [answerMode, categorySlug, difficulty, isStarting, runQuestion]);
 
   const submitAnswer = useCallback(
     async ({ value, timedOut }: { value: string; timedOut?: boolean }) => {
@@ -341,14 +361,22 @@ export function SurvivalPlayView() {
       <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 pt-2 sm:px-8">
         <Link
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/60 transition hover:text-white"
-          href="/quiz"
+          href={backHref}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to lobby
+          {backLabel}
         </Link>
-        <span className="rounded-full border border-rose-400/30 bg-rose-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-200">
-          Survival
-        </span>
+        <div className="flex items-center gap-2">
+          {isCategoryMode && categoryName ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-100">
+              <Layers className="h-3 w-3" />
+              {categoryName}
+            </span>
+          ) : null}
+          <span className="rounded-full border border-rose-400/30 bg-rose-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-200">
+            Survival
+          </span>
+        </div>
       </div>
 
       {phase === "setup" && catalogEmpty ? (
@@ -356,14 +384,17 @@ export function SurvivalPlayView() {
           <div className="rounded-3xl border border-amber-300/30 bg-gradient-to-br from-amber-500/15 via-black/40 to-rose-500/10 p-8 text-center sm:p-10">
             <Database className="mx-auto h-10 w-10 text-amber-200" />
             <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.3em] text-amber-200">
-              Catalog is empty
+              {isCategoryMode ? "Category is empty" : "Catalog is empty"}
             </p>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-              Survival mode isn&apos;t available yet
+              {isCategoryMode
+                ? `No tracks in "${categoryName ?? "this category"}" yet`
+                : "Survival mode isn't available yet"}
             </h2>
             <p className="mt-2 text-sm text-white/60 sm:text-base">
-              The survival catalog needs to be seeded with tracks before anyone can play.
-              Once an admin adds some, you&apos;ll be able to start a run.
+              {isCategoryMode
+                ? "Pick a different category or check back after an admin adds more tracks."
+                : "The survival catalog needs to be seeded with tracks before anyone can play. Once an admin adds some, you'll be able to start a run."}
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <Link href="/quiz">
@@ -390,10 +421,12 @@ export function SurvivalPlayView() {
               Three strikes and you&apos;re out
             </p>
             <h1 className="text-4xl font-black tracking-tight text-white sm:text-6xl">
-              Survival
+              {isCategoryMode && categoryName ? categoryName : "Survival"}
             </h1>
             <p className="text-sm text-white/60 sm:text-base">
-              Tracks come from the curated catalog. Miss three and your run ends — how long can you last?
+              {isCategoryMode && categoryName
+                ? `Only tracks from "${categoryName}". Miss three and your run ends — how long can you last?`
+                : "Tracks come from the curated catalog. Miss three and your run ends — how long can you last?"}
             </p>
             {bestScore !== null && bestScore > 0 ? (
               <p className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-200">

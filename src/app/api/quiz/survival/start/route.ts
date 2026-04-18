@@ -12,7 +12,12 @@ import {
 } from "@/lib/quiz-difficulty";
 import { shuffleItems } from "@/lib/quiz-utils";
 import { createSurvivalSessionToken } from "@/lib/survival-session";
-import { pickDistractorTitles, pickRandomCatalogTrack } from "@/lib/survival-catalog";
+import {
+  listCatalogCategories,
+  pickDistractorTitles,
+  pickRandomCatalogTrack,
+  slugifyCategory,
+} from "@/lib/survival-catalog";
 
 const ROUTE = "quiz-survival-start";
 
@@ -20,6 +25,10 @@ const bodySchema = z
   .object({
     difficulty: z.enum(QUIZ_DIFFICULTY_VALUES),
     answerMode: z.enum(QUIZ_ANSWER_MODE_VALUES),
+    // Optional category slug (e.g. "j-pop"). Validated against the
+    // distinct-categories list so an attacker can't bake arbitrary filter
+    // strings into the signed token.
+    categorySlug: z.string().trim().min(1).max(80).optional(),
   })
   .strict();
 
@@ -47,13 +56,31 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const { difficulty, answerMode } = parsed.data;
-  const track = await pickRandomCatalogTrack([]);
+  const { difficulty, answerMode, categorySlug } = parsed.data;
+
+  let category: string | null = null;
+  if (categorySlug) {
+    const categories = await listCatalogCategories();
+    const match = categories.find((c) => slugifyCategory(c.category) === categorySlug);
+    if (!match) {
+      return apiError({
+        status: 404,
+        code: "UNKNOWN_CATEGORY",
+        message: "That category has no tracks yet.",
+        log: { route: ROUTE, userId: session.user.id },
+      });
+    }
+    category = match.category;
+  }
+
+  const track = await pickRandomCatalogTrack([], { category });
   if (!track) {
     return apiError({
       status: 409,
       code: "EMPTY_CATALOG",
-      message: "The survival catalog is empty. Ask an admin to add tracks.",
+      message: category
+        ? `The "${category}" category has no tracks yet.`
+        : "The survival catalog is empty. Ask an admin to add tracks.",
       log: { route: ROUTE, userId: session.user.id },
     });
   }
@@ -65,6 +92,7 @@ export async function POST(request: NextRequest) {
     userId: session.user.id,
     difficulty,
     answerMode,
+    category,
     score: 0,
     strikes: 0,
     strikesAllowed: 3,
@@ -75,7 +103,10 @@ export async function POST(request: NextRequest) {
 
   const options =
     answerMode === "multiple_choice"
-      ? shuffleItems([track.title, ...(await pickDistractorTitles(track.id, 3))])
+      ? shuffleItems([
+          track.title,
+          ...(await pickDistractorTitles(track.id, 3, { category })),
+        ])
       : undefined;
 
   return NextResponse.json({
@@ -83,6 +114,7 @@ export async function POST(request: NextRequest) {
     score: 0,
     strikes: 0,
     strikesAllowed: 3,
+    category,
     question: {
       id: track.id,
       youtubeVideoId: track.youtubeVideoId,

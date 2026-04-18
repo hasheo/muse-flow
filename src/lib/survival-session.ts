@@ -12,6 +12,10 @@ const survivalPayloadSchema = z
     uid: z.string().min(1),
     diff: z.string().min(1),
     mode: z.string().min(1),
+    // Optional category filter. Baked into the signed token so a client can't
+    // flip categories mid-run (which would let them refresh-the-pool to dodge
+    // the "seen" guard). Empty-string is normalized to omitted on issue.
+    cat: z.string().min(1).optional(),
     score: z.number().int().nonnegative(),
     strikes: z.number().int().nonnegative(),
     strikesAllowed: z.number().int().positive(),
@@ -50,6 +54,7 @@ export function createSurvivalSessionToken(input: {
   userId: string;
   difficulty: QuizDifficulty;
   answerMode: QuizAnswerMode;
+  category?: string | null;
   score: number;
   strikes: number;
   strikesAllowed: number;
@@ -61,10 +66,12 @@ export function createSurvivalSessionToken(input: {
   const ttlSeconds = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
   const nowSeconds = Math.floor(Date.now() / 1000);
   const seen = input.seen.slice(-MAX_SEEN_IDS);
+  const category = input.category?.trim();
   const payload: SurvivalSessionPayload = {
     uid: input.userId,
     diff: input.difficulty,
     mode: input.answerMode,
+    ...(category ? { cat: category } : {}),
     score: input.score,
     strikes: input.strikes,
     strikesAllowed: input.strikesAllowed,

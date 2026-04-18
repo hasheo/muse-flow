@@ -91,6 +91,32 @@ describe("survival-session", () => {
     if (!result.valid) expect(result.reason).toBe("Token expired");
   });
 
+  it("round-trips an optional category field", () => {
+    const token = createSurvivalSessionToken(baseInput({ category: "J-Pop" }));
+    const result = verifySurvivalSessionToken(token);
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.payload.cat).toBe("J-Pop");
+  });
+
+  it("omits the category field when not provided", () => {
+    const token = createSurvivalSessionToken(baseInput());
+    const result = verifySurvivalSessionToken(token);
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.payload.cat).toBeUndefined();
+  });
+
+  it("treats whitespace-only categories as absent", () => {
+    // Prevents a caller passing "" or "   " from baking a useless filter into
+    // the token that the DB side would then try to match as an empty string.
+    const token = createSurvivalSessionToken(baseInput({ category: "   " }));
+    const result = verifySurvivalSessionToken(token);
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.payload.cat).toBeUndefined();
+  });
+
   it("falls back to NEXTAUTH_SECRET when QUIZ_SESSION_SECRET is missing", () => {
     delete process.env.QUIZ_SESSION_SECRET;
     process.env.NEXTAUTH_SECRET = "fallback-secret-of-sufficient-length-abcdef";
