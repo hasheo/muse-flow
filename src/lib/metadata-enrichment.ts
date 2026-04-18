@@ -1,5 +1,3 @@
-import { env } from "@/lib/env";
-
 /**
  * Track metadata enrichment.
  *
@@ -98,7 +96,11 @@ async function fetchDiscogs(
   title: string,
   artist: string,
 ): Promise<{ result: DiscogsSearchResult | null; ok: boolean }> {
-  const token = env.DISCOGS_TOKEN;
+  // Read live from process.env rather than the validated env snapshot so
+  // admins can rotate the token without a server restart, and so unit tests
+  // can toggle it per-case. The env validator declares this optional with no
+  // shape constraints, so there's nothing to lose by skipping the cache.
+  const token = process.env.DISCOGS_TOKEN?.trim();
   if (!token) return { result: null, ok: false };
 
   const params = new URLSearchParams({
