@@ -6,11 +6,36 @@ import { compare } from "bcryptjs";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 });
+
+function parseAdminEmails(raw: string | undefined): Set<string> {
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+const ADMIN_EMAILS = parseAdminEmails(env.ADMIN_EMAILS);
+
+async function ensureAdminFlag(userId: string, email: string | null | undefined): Promise<boolean> {
+  const normalized = email?.toLowerCase() ?? "";
+  const shouldBeAdmin = normalized ? ADMIN_EMAILS.has(normalized) : false;
+  const user = await db.user.findUnique({ where: { id: userId }, select: { isAdmin: true } });
+  if (!user) return false;
+  if (shouldBeAdmin && !user.isAdmin) {
+    await db.user.update({ where: { id: userId }, data: { isAdmin: true } });
+    return true;
+  }
+  return user.isAdmin;
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
@@ -73,6 +98,9 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.picture = user.image;
+        token.isAdmin = await ensureAdminFlag(user.id, user.email);
+      } else if (token.id && typeof token.email === "string") {
+        token.isAdmin = await ensureAdminFlag(token.id as string, token.email);
       }
       return token;
     },
@@ -80,6 +108,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.image = token.picture as string | undefined;
+        session.user.isAdmin = Boolean(token.isAdmin);
       }
       return session;
     },

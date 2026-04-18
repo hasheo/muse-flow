@@ -1,6 +1,6 @@
 "use client";
 
-import { Headphones, LogOut } from "lucide-react";
+import { Headphones, LogOut, ShieldCheck } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -66,6 +66,16 @@ export function QuizTopbar() {
                     <p className="truncate text-xs text-white/50">{session.user.email}</p>
                   ) : null}
                 </div>
+                {session?.user?.isAdmin ? (
+                  <Link
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 transition hover:bg-white/[0.06] hover:text-white"
+                    href="/admin/catalog"
+                    onClick={() => setShowMenu(false)}
+                  >
+                    <ShieldCheck className="h-4 w-4 text-lime-300" />
+                    Admin catalog
+                  </Link>
+                ) : null}
                 <button
                   className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 transition hover:bg-white/[0.06] hover:text-white"
                   onClick={() => signOut({ callbackUrl: "/sign-in" })}
